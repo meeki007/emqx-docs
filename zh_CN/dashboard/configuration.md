@@ -10,7 +10,7 @@ EMQX 的管理功能通过可视化 Dashboard 界面提供直观的操作体验�
 
 ## 集群配置
 
-EMQX 提供了热配置能力，可以在运行时动态修改配置，无需重启 EMQX 节点。在 Dashboard 页面中，我们针对热配置功能，提供了一个可视化配置页面，通过该页面，可以方便的修改 EMQX 的配置。目前提供了以下配置项：
+EMQX 提供了热配置能力，可以在运行时动态修改配置，无需重启 EMQX 节点。EMQX Dashboard 针对热配置功能，提供了一个可视化配置页面。通过该页面，可以方便的修改 EMQX 的配置。目前提供了以下配置项：
 
 - MQTT 配置
 - 监听器
@@ -20,7 +20,7 @@ EMQX 提供了热配置能力，可以在运行时动态修改配置，无需重
 
 ### MQTT 配置
 
-点击左侧菜单中的**管理** -> **MQTT 配置**进入 MQTT 协议相关的配置页面。在 MQTT 配置页面中，我们可以配置 MQTT 协议相关的配置项，包括：
+点击左侧菜单中的**管理** -> **MQTT 配置**进入 MQTT 协议相关的配置页面。在 MQTT 配置页面中，您可以配置 MQTT 协议相关的配置项，包括：
 
 #### 通用
 
@@ -53,15 +53,15 @@ EMQX 提供了热配置能力，可以在运行时动态修改配置，无需重
 - 使用 8083 端口的 WebSocket 类型监听器
 - 使用 8084 端口的 WebSocket 安全类型监听器
 
-![image](https://docs.emqx.com/assets/config-listener-list.7iplyMvV.png)
+![config-listener-list](./assets/config-listener-list.png)
 
 通常使用以上默认的监听器，输入对应端口和协议类型即可。如果需要添加其他类型的监听器，可以点击右上角的**添加监听器**按钮，添加一个新的监听器。
 
 #### 添加监听器
 
-在右侧弹出的面板中可以看到一个添加监听器的表单，其中中包含了监听器的基本配置项。您可以输入一个监听器名称用于标识该监听器；选择一个监听器类型，包括 tcp、ssl、ws 和 wss 类型；输入监听器地址，可以输入 IP 地址和端口号，使用 IP 地址可以限制监听器的访问范围，也可以直接输入一个端口号。
+在右侧弹出的**添加监听器**面板中可以看到一个添加监听器的表单，其中中包含了监听器的基本配置项。您可以输入一个监听器名称用于标识该监听器；选择一个监听器类型，包括 tcp、ssl、ws 和 wss 类型；输入监听器地址，可以输入 IP 地址和端口号，使用 IP 地址可以限制监听器的访问范围，也可以直接输入一个端口号。
 
-![image](https://docs.emqx.com/assets/config-listener-add.190v3Kn-.png)
+![image](./assets/config-listener-add.png)
 
 ##### 速率限制
 
@@ -116,11 +116,13 @@ EMQX 支持两种不同的日志输出方式：控制台输出日志和文件输
 
 如当前告警触发阈值或告警监控检查间隔的默认值不符合用户的实际需要，可以在此页面进行设置调整。当前设置分为两个模块：**Erlang 虚拟机**和**操作系统**，各配置项的默认值和说明可查看[告警](https://docs.emqx.com/zh/emqx/latest/observability/alarms.html)。
 
+<img src="./assets/monitoring-system.png" alt="image" style="zoom:67%;" />
+
 #### 监控集成
 
-该页面主要提供了与第三方监控平台的集成配置，目前 EMQX 提供了与 Prometheus 的集成方式。配置页面可以快速开启该配置，并配置推送数据地址与数据上报时间间隔等。
+该页面主要提供了与第三方监控平台的集成配置，目前 EMQX 提供了与 Prometheus、OpenTelemetry，和 Datadog 的集成方式。
 
-当使用 `Prometheus` 第三方监控服务时我们可以直接使用 EMQX 提供的 API `/prometheus/stats` 来获取监控数据，使用该 API 时不需要认证信息，具体的 API 请参考 [Prometheus](../observability/prometheus.md)。
+当使用 `Prometheus` 第三方监控服务时，您可以在该页面快速开启该配置，并配置推送数据地址与数据上报时间间隔等。我们可以直接使用 EMQX 提供的 API `/prometheus/stats` 来获取监控数据，使用该 API 时不需要认证信息，具体的 API 请参考 [Prometheus](../observability/prometheus.md)。
 
 或者可以选择配置一个 `Pushgateway` 的服务地址，来将监控数据推送到 `Pushgateway`，然后再由 `Pushgateway` 推送到 `Prometheus` 服务。通常情况下我们不需要使用 `Pushgateway` 就能监控到 EMQX 的指标数据，点击查看[何时使用 Pushgateway](https://prometheus.io/docs/practices/pushing/)。
 
@@ -129,6 +131,8 @@ EMQX 支持两种不同的日志输出方式：控制台输出日志和文件输
 启动 `Prometheus` 服务后，可以在帮助页面的最后，点击下载我们提供的 `Grafana` 默认的监控面板的配置文件，将该文件导入到 `Grafana` 中，我们就可以通过可视化面板来查看 EMQX 的监控数据，用户也可以根据需求在 `Grafana` 中对监控数据进行自定义修改。同时模版也可以在 [Grafana 官方网站](https://grafana.com/grafana/dashboards/17446-emqx/)中下载。
 
 ![image](https://docs.emqx.com/assets/emqx-grafana.OnkGjqvG.jpg)
+
+关于 OpenTelemetry 和 Datadog 集成的配置详情，参考[集成 OpenTelemetry](../observability/open-telemetry/open-telemetry.md) 和 [集成 Datadog](../observability/datadog.md)。
 
 ### 集群连接
 

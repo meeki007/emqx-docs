@@ -1,102 +1,105 @@
 # Management
 
-EMQX provides hot configuration capabilities, which can dynamically modify the configuration at runtime without restarting the EMQX node. In the Dashboard page, we provide a visual configuration page for the hot configuration function, which can easily modify the configuration of EMQX. The following configuration items are currently provided:
+EMQX provides powerful management features to optimize system configuration, extend protocol support, enhance MQTT advanced features, and enable plugin extensions. These management capabilities allow users to dynamically adjust system settings without stopping the service, improving overall performance and operational flexibility. The main management features include the following aspects:
 
-- Listener
-- MQTT
-- Log
-- Monitoring Integration
+- **Cluster Settings**: Dynamic configuration adjustments during runtime, supporting core configurations such as MQTT Settings, Listeners, Logging, Monitoring, and Cluster Linking.
+- **Advanced MQTT**: Simplified configuration for features such as Topic Rewrite, Auto-Subscription, Delayed Publish, and File Transfer, further expanding MQTT use cases.
+- **Extensions**: Built-in extension mechanisms and multi-protocol gateway support provide flexible protocol adaptation, along with support for user-defined hooks and plugin development.
 
-## Listener
+The management features of EMQX are provided through a visual Dashboard interface, offering an intuitive user experience that helps users quickly get started and flexibly use these features to meet the demands of complex IoT scenarios. The following sections provide a detailed description of each module’s features and configurations.
 
-Clicking on the listener under the configuration menu on the left will take you to the listener page, which is a list page of a listener by default. EMQX provides four common listeners by default:
+## Cluster Settings
+
+EMQX provides hot configuration capabilities, which can dynamically modify the configuration at runtime without restarting the EMQX node. The EMQX Dashboard provides a visual configuration page for the hot configuration function, allowing you to easily modify the configuration of EMQX. The following configuration items are currently provided:
+
+- MQTT Settings
+- Listeners
+- Logging
+- Monitoring
+- Cluster Linking
+
+### MQTT Settings
+
+Click **Management** -> **MQTT Settings** in the left menu to enter the MQTT protocol-related configuration page. In the MQTT Settings page, you can configure various MQTT-related parameters, including:
+
+#### General
+
+The **General** tab page contains general basic configuration items for the MQTT protocol, such as idle timeout, maximum packet size, maximum client ID length, maximum topic levels, and maximum allowed QoS levels.
+
+#### Session
+
+The **Session** tab page includes configuration items related to MQTT session management, such as session expiry interval (only supported for non-MQTT 5.0 connections; MQTT 5.0 connections need to be configured on the client side), maximum subscription count, maximum flight window, and whether to store QoS 0 messages.
+
+#### Durable Sessions
+
+The **Durable Sessions** tab page includes configuration items related to the [MQTT Durable Sessions](../durability/durability_introduction.md) feature, such as message retention duration, message query batch size, idle poll interval, session heartbeat interval, etc.
+
+#### Retainer
+
+The **Retainer** tab page contains MQTT protocol-related configuration items for retained messages, such as whether to enable retained messages, message storage type and method, maximum number of retained messages, retained message payload size, and message expiry interval. For more details, refer to [Configuring Retained Messages](./retained.md#retainer-settings).
+
+> When retained messages are disabled, existing retained messages will not be deleted.
+
+#### System Topic
+
+The **System Topic** tab page provides configuration items for EMQX's built-in system topics. EMQX periodically publishes operational status, usage statistics, and real-time client events to system topics prefixed with `$SYS/`. When clients subscribe to these topics, EMQX will publish related information to those topics. Configuration items for system topics include message publish interval, heartbeat interval, etc.
+
+### Listener
+
+Click on **Management** -> **Listeners** in the left menu to enter the listeners page. This page displays a list of listeners by default. EMQX provides four common listeners:
 
 - TCP listener using port 1883
 - SSL/TLS secure connection listener using port 8883
 - WebSocket listener using port 8083
 - WebSocket secure listener using port 8084
 
-We normally use the above default listeners, enter the corresponding port and protocol type. If you need to add other types of listeners, you can click the `Add Listener` button in the upper right corner to add a new listener.
+![image](./assets/config-listener-list.png)
 
-### Add Listener
+Typically, you can use these default listeners by specifying the corresponding port and protocol type. To add another type of listener, click the **+Add Listener** button in the top-right corner to create a new listener.
 
-Click add listener button, you can see a form for adding a listener on the right panel. The form contains the basic configuration items of the listener. Enter a listener name to identify the listener, select a listener type, including tcp, ssl, ws, and wss types, enter the listener bind, you can enter the IP address and port number, using the IP address can limit the access range of the listener, or you can directly enter a port number, and then click the `Add` button.
+#### Add Listener
+
+In the **Add Lisenter** pop-up panel, you will see a form for adding a listener, which contains the basic configuration items. You can enter a name for the listener to identify it, choose the listener type (TCP, SSL, WS, WSS), and enter the listener address (IP address and port number). Using the IP address can restrict the listener's access range, or you can directly specify a port number.
 
 ![image](./assets/config-listener-add.png)
 
-More about the listener configuration, refer to [EMQX Open Source Configuration Manual](https://docs.emqx.com/en/emqx/v@CE_VERSION@/hocon/) and  [EMQX Enterprise Configuration Manual](https://docs.emqx.com/en/enterprise/v@EE_VERSION@/hocon/).
+##### Rate Limiting
 
-### Manager Listener
+In the **Limiter** section of the **Add Listener** form, you can limit the message receiving and publishing rates during EMQX operation, such as:
 
-After adding a listener, it can be seen in the list, and the name can be clicked to enter the edit page. On this page, the listener's configuration can be modified, or the listener can be deleted. Note that the listener name, type, and bind cannot be changed in the settings.
+- Maximum Connection Rate (Listener)
+- Maximum Message Publishing Rate (Per Client)
+- Maximum Message Publishing Rraffic (Per Client)
 
-![image](./assets/config-listener-list.png)
+Configuring rate limiting ensures the stability of the system and network when message data overload or excessive client requests occur.
 
-To delete a listener, click the "Delete" button on the edit page. When deleting a listener, you need to enter the name of the listener you are currently deleting to confirm the deletion. You can also click the enable switch to enable or disable the listener in the list. The list also allows you to view the number of connections for each listener.
+For more detailed configuration on rate limiting, refer to [Rate Limit](../rate-limit/rate-limit.md).
 
-::: tip
-Modify and delete listeners are operations with a certain degree of risk, which need to be operated with caution. If you update or delete a listener, the client connections on that listener will be disconnected.
-:::
+For more details on listener configuration, refer to [EMQX Open Source Configuration Manual](https://docs.emqx.com/en/emqx/v@CE_VERSION@/hocon/) and  [EMQX Enterprise Configuration Manual](https://docs.emqx.com/en/enterprise/v@EE_VERSION@/hocon/).
 
-## MQTT
+#### Manage Listeners
 
-Click the MQTT under the configuration menu on the left to go to the MQTT configuration page. In the MQTT configuration page, we can configure the MQTT configuration items, including:
+After adding a listener, you can see it in the list. Click on the listener's name to enter the editing page, where you can modify or delete the listener configuration. Note that the listener name, type, and listener address cannot be modified in the settings.
 
-### General
+Click the **Delete** button in the editing page to remove the listener. When deleting a listener, you will need to enter the listener's name to confirm the deletion. You can also toggle the enable switch to enable or disable the listener. The list also shows the number of connections for each listener.
 
-General menu is the general basic configuration items of the MQTT protocol, including similar configuration idle timeout, maximum packet size, maximum Client ID length, topic level and QoS, etc.
+::: tip Warning
 
-### Session
-
-Session menu is the session related configuration items of the MQTT protocol, including session expiration interval (only supported by non-MQTT 5.0 connections, MQTT 5.0 connections need to be configured in the client), maximum subscription quantity, maximum flight window, whether to store QoS 0 messages, etc.
-
-### Retainer
-
-The retainer menu is the Retained Message related configuration items of the MQTT protocol, including whether to enable the Retained Message function, the storage type and method of the message, the maximum number of Retained Messages, the payload size of the Retained Message, the expiration interval of the Retained Message, etc. For detailed information about the configuration items, see [Retainer Settings](./retained.md#retainer-settings).
-
-> When the Retained Message is disabled, the existing Retained Messages will not be deleted.
-
-### System Topic
-
-The system Topic menu is the system topic related configuration items of EMQX; EMQX will periodically publish the running status, usage statistics, and instant client events to the system topic starting with `$SYS/`. The configuration items of the system topic include the Messages Publish Interval, the Heartbeat Interval, etc. When the client subscribes to this topic, EMQX will publish the relevant information on this topic.
-
-### Advanced MQTT
-
-::: tip Note
-
-Advanced MQTT features are only available in the EMQX Enterprise edition.
+Modifying and deleting listeners is a risky operation and should be done carefully. If a listener is updated or deleted, client connections on that listener will be disconnected.
 
 :::
 
-Besides, the EMQX Dashboard also offers advanced MQTT features like Topic Rewrite, Auto Subscribe, and Delayed Publish. You can click Management and browse to Advanced MQTT section for configurations we supported. 
+### Logging
 
-## Limiter
+Click **Management** -> **Logging** in the left menu to enter the log configuration page. This page includes tabs for **Console Log**, **File Log**, **Log Throttling**, and **Audit Log**.
 
-Click the Limiter under the configuration menu on the left to go to the configuration page of the rate limit. In this configuration page, you can limit the rate of EMQX's access to messages and distribution of messages, including:
+EMQX supports two types of log output: console log and file log. You can choose either or both types according to your needs. In the corresponding configuration page, you can enable or disable the log handler, set the log level, log format type, and for file logs, specify the log file path and log name. For more detailed configuration instructions on logs, refer to [Configure Logging via Dashboard](../observability/log.md#configure-logging-via-dashboard).
 
-- Bytes in, the size of the bytes of the messages that flow in per second
-- Message in, the number of messages that flow in per second
-- Connection, the number of connections per second
-- Message Routing, the number of messages dispatched per second by the session
-- Internal-related rate configuration of some functions
+In the **Log Throttling** tab page, you can configure the time window for log throttling. For more information on log throttling, refer to [Log Rate Limiting](../observability/log.md#log-throttling).
 
-Limiter provides a series of rate limit functions to prevent excessive client requests when message data is overloaded, ensuring the system's and network's stability.
+In the **Audit Log** page, you can enable or disable the audit log feature in the EMQX Enterprise edition and configure it. For detailed configuration instructions, refer to [Audit Log](./audit-log.md).
 
-EMQX supports rate limiting for nodes, listeners, and connections, but only connection and node-level rates are currently supported when configuring in Dashboard.
-
-More about the Limiter configuration, please refer to [Rate limit](../rate-limit/rate-limit.md).
-
-![image](./assets/config-limiter.png)
-
-## Log
-
-Click the log under the configuration menu on the left to go to the log configuration page. The log configuration is divided into two parts, one is the Console Handler, and the other is the File Handler. In the log configuration page, you can set whether to enable the log handler, set the log level, the log formatter, text or json, and the log file can also set the path and name.
-
-![image](./assets/config-log.png)
-
-More about the log configuration, please refer to [Log Configuration](../configuration/configuration-manual.html#log).
-
-## Monitoring
+### Monitoring
 
 ::: tip Note
 
@@ -104,31 +107,101 @@ The Monitoring feature is only available in the EMQX Enterprise edition.
 
 :::
 
-Clicking on Monitoring under the Configuration menu on the left will take you to the configuration page for monitoring integration. This menu page contains two tabs under.
+Click on **Management** -> **Monitoring** in the left menu to enter the monitoring integration configuration page. This page contains two tabs:
 
-- System: Depending on the user's needs, the settings for the [Alarms](./diagnose.md#alarms) function, such as alarm thresholds, check intervals, etc., can be adjusted to a certain extent according to user needs.
-- Integration: Provides configuration for integration with third party monitoring platforms.
+- **System**: Depending on the user's needs, the settings for the [Alarms](./diagnose.md#alarms) function, such as alarm thresholds, check intervals, etc., can be adjusted to a certain extent according to user needs.
+- **Integration**: Provides configuration for integration with third party monitoring platforms.
 
-### System
+#### System
 
-If the default value of the current alarm trigger threshold or alarm monitoring check interval does not meet the actual needs of you, you can adjust the settings on this page. The current settings are divided into two modules: `Erlang VM` and `OS`, the default values and descriptions of each configuration item can be found in [alarms](../observability/alarms.md).
+If the default value of the current alarm trigger threshold or alarm monitoring check interval does not meet the actual needs of you, you can adjust the settings on this page. The current settings are divided into two modules: **Erlang VM** and **Operating System**, the default values and descriptions of each configuration item can be found in [Alarms](../observability/alarms.md).
 
-![image](./assets/monitoring-system.png)
+<img src="./assets/monitoring-system.png" alt="image" style="zoom:67%;" />
 
-### Integration
+#### Integration
 
-Click the monitoring integration under the configuration menu on the left to go to the monitoring integration configuration page. This page mainly provides integration configuration with third-party monitoring platforms. Currently, EMQX provides integration with Prometheus. The configuration page can quickly enable this configuration and configure the URL of push gateway server and data reporting interval, etc.
+This page mainly provides integration configurations with third-party monitoring platforms. Currently, EMQX supports integration with **Prometheus**, **OpenTelemetry**, and **Datadog**.
 
-<!--add a screenshot later-->
+When using the `Prometheus` third-party monitoring service, you can quickly enable the configuration on this page and set parameters such as the push data address and data reporting interval. You can directly use the API `/prometheus/stats` provided by EMQX to get monitoring data. When using this API, no authentication information is required. Please refer to [Prometheus](../observability/prometheus.md) for specific API.
 
-When using the third-party monitoring service `Prometheus`, we can directly use the API `/prometheus/stats` provided by EMQX to get monitoring data. When using this API, no authentication information is required. Please refer to [Prometheus](../observability/prometheus.md) for specific API.
+In most cases, you do not need to use `Pushgateway` to monitor the metrics data of EMQX. And you can choose to configure a `Pushgateway` service address to push the monitoring data to `Pushgateway`, and then `Pushgateway` pushes the data to the `Prometheus` service. Click to view [When to use Pushgateway](https://prometheus.io/docs/practices/pushing/).
 
-In most cases, we don't need to use `Pushgateway` to monitor the metrics data of EMQX. And you can choose to configure a `Pushgateway` service address to push the monitoring data to `Pushgateway`, and then `Pushgateway` pushes the data to the `Prometheus` service. Click to view [When to use Pushgateway](https://prometheus.io/docs/practices/pushing/).
-
-On the bottom of the page, click the "Help" button, select the default or use the `Pushgateway` method, configure the address or API information of the relevant service according to the provided usage steps, and then quickly generate the corresponding `Prometheus` configuration file. Finally, use this configuration file to start the `Prometheus` service.
-
-<!--add a screenshot later-->
+On the bottom of the page, click the **Help** button, select the default or use the `Pushgateway` method, configure the address or API information of the relevant service according to the provided usage steps, and then quickly generate the corresponding `Prometheus` configuration file. Finally, use this configuration file to start the `Prometheus` service.
 
 Users can customize and modify the monitoring data in `Grafana` according to their needs. After starting the `Prometheus` service, you can click the `Download Grafana Template` button at the end of the help page to download the configuration file of the default dashboard provided by us. Import the file into `Grafana`, and we can view the monitoring data of EMQX through the visualization panel. Users can also download the template from the [Grafana official website](https://grafana.com/grafana/dashboards/17446-emqx/).
 
 ![image](./assets/emqx-grafana.jpg)
+
+For detailed configuration of OpenTelemetry and Datadog integration, refer to [Integrate with OpenTelemetry](../observability/open-telemetry/open-telemetry.md) and [Integrate with Datadog](../observability/datadog.md).
+
+### Cluster Linking
+
+::: tip Note
+
+The Cluster Linking feature is only available in the EMQX Enterprise edition.
+
+:::
+
+The Cluster Linking feature allows multiple independent EMQX clusters to be connected, enabling clients in geographically dispersed clusters to communicate with each other. Users can create and configure cluster links on this page. For detailed guidance on creation and configuration, refer to [EMQX Cluster Linking](../cluster-linking/introduction.md).
+
+## Advanced MQTT Features
+
+::: tip Note
+
+Advanced MQTT features are only available in the EMQX Enterprise edition.
+
+:::
+
+### Topic Rewrite
+
+The Topic Rewrite feature allows modification of device business topics. By setting up rules in EMQX, it can rewrite the original topic to a new target topic during subscription or publishing. This page enables users to add topic rewriting rules via the Dashboard without modifying configuration files. For detailed topic rewriting rules, refer to [Topic Rewrite](../messaging/mqtt-topic-rewrite.md).
+
+### Auto-Subscription
+
+Auto-subscription is an MQTT extension feature supported by EMQX. It allows EMQX to automatically subscribe to specified topics for devices based on predefined rules after they successfully connect, without requiring additional subscription requests. This page allows users to configure the auto-subscription feature via the Dashboard. For detailed configuration guidance, refer to [Auto-Subscription](../messaging/mqtt-auto-subscription.md).
+
+### Delayed Publish
+
+Delayed publish is an MQTT extension feature supported by EMQX. When a client publishes a message using a special topic prefix `$delayed/{DelayInterval}`, the delayed publish feature is triggered, allowing the message to be published after a user-configured delay interval. This page enables users to configure the delayed publish feature via the Dashboard. For detailed configuration guidance, refer to [Configure Delayed Publish via Dashboard](../messaging/mqtt-delayed-publish.md#configure-delayed-publish-via-dashboard).
+
+### File Transfer
+
+File transfer based on MQTT is an advanced feature of EMQX Enterprise edition. EMQX extends the MQTT protocol to allow client devices to transfer, manage, and store offline file data, such as audio, video, images, and diagnostic logs, in addition to transmitting real-time structured data like sensor data and control instructions. You can configure this feature on the file transfer page. For detailed configuration guidance, refer to [Enabling and Configuring File Transfer via Dashboard](../file-transfer/broker.md#enable-and-configure-file-transfer-via-dashboard).
+
+## Extensions
+
+::: tip Note
+
+MQTT extension features are only available in the EMQX Enterprise Edition.
+
+:::
+
+The plugins menu provides built-in extension-related configuration options in EMQX, offering additional features for MQTT protocol clients, including multi-protocol gateways, ExHook, and plugins.
+
+### Gateways
+
+EMQX Multi-Protocol Gateways support handling all non-MQTT protocol connections, authentication, and message sending and receiving. They provide a unified conceptual model for various protocols.
+
+In the gateways page, you can enable a gateway and configure its basic settings, such as listener configuration. EMQX also provides custom configuration options. For detailed configuration guidance, refer to the quick start documentation for the following common gateways:
+
+- [MQTT-SN](../gateway/mqttsn.md)
+- [STOMP](../gateway/stomp.md)
+- [CoAP](../gateway/coap.md)
+- [LwM2M](../gateway/lwm2m.md)
+- [ExProto](../gateway/exproto.md)
+
+The following gateways are only supported in the EMQX Enterprise Edition:
+
+- [OCPP](../gateway/ocpp.md)
+- [GB/T 32960](../gateway/gbt32960.md)
+- [JT/T 808](../gateway/jt808.md)
+
+### ExHook
+
+Hooks are a common extension mechanism that allows developers to execute custom code at specific event points. EMQX supports the hook mechanism, enabling users to flexibly modify or extend system functionalities by intercepting module function calls, message passing, and event delivery.
+
+In the ExHook page, you can view basic information and the status of hooks, as well as add and configure them.
+
+### Plugins
+
+EMQX supports extending custom business logic through plugins or implementing other protocol adaptations via the plugin protocol extension interface. On the plugins page, you can install and start developed plugin packages and maintain or configure them. For detailed usage guidance, refer to [Plugins](../extensions/plugins.md).
