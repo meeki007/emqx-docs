@@ -1,6 +1,6 @@
 {
   "info": {
-    "version": "5.8.2",
+    "version": "5.8.3-rc.1",
     "title": "EMQX Enterprise API"
   },
   "components": {
@@ -148,6 +148,20 @@
           "type": "boolean"
         },
         "example": false
+      },
+      "emqx_otel_sampler_api.white_list_type": {
+        "in": "path",
+        "name": "type",
+        "description": "Type of white list. Can be `clientid`, `topic`",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "clientid",
+            "topic"
+          ]
+        },
+        "example": "clientid"
       },
       "emqx_prometheus_api.mode": {
         "in": "query",
@@ -1396,6 +1410,21 @@
             "items": {
               "$ref": "#/components/schemas/emqx.client_attrs_init"
             }
+          },
+          "clientid_override": {
+            "default": "disabled",
+            "description": "A one line expression to evaluate a set of predefined string functions (like in the rule engine SQL statements).<br/>The expression can be a function call with nested calls as its arguments, or direct variable reference.<br/>So far, it does not provide user-defined variable binding (like `var a=1`) or user-defined functions.<br/>As an example, to extract the prefix of client ID delimited by a dot: `nth(1, tokens(username, '.'))`.<br/><br/>The variables pre-bound variables are:<br/>- `cn`: Client's TLS certificate common name.<br/>- `dn`: Client's TLS certificate distinguished name (the subject).<br/>- `clientid`: The original MQTT Client ID.<br/>- `username`: MQTT Client's username.<br/>- `client_attrs.{NAME}`: Client attributes initialized by per config `client_attrs_init`.<br/><br/>You can read more about variform expressions in EMQX docs.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "disabled"
+                ]
+              }
+            ]
           },
           "session_expiry_interval": {
             "default": "2h",
@@ -2721,12 +2750,12 @@
                 "status": "finished",
                 "started_at": "2024-07-15T13:48:02.648559+08:00",
                 "result": "success",
-                "finished_at": "2024-07-16T11:00:01.875627+08:00",
                 "upgrade_opts": {
                   "deploy_inplace": false
                 },
                 "target_vsn": "5.8.1",
-                "from_vsn": "5.8.0"
+                "from_vsn": "5.8.0",
+                "finished_at": "2024-07-16T11:00:01.875627+08:00"
               }
             ]
           }
@@ -3869,6 +3898,60 @@
             "type": "integer",
             "description": "每个客户端/用户的最大规则数。请注意，随着规则数量的增加，性能可能会下降。",
             "minimum": 1
+          }
+        },
+        "type": "object"
+      },
+      "opentelemetry.e2e_tracing_options": {
+        "required": [
+          "cluster_identifier"
+        ],
+        "properties": {
+          "cluster_identifier": {
+            "default": "emqxcl",
+            "type": "string",
+            "description": "An attribute value added into Span's Attributes. The attribute key will be `cluster.id`<br/>Typically, set a simple and easily recognizable name or use the cluster name to identify different EMQX clusters."
+          },
+          "msg_trace_level": {
+            "default": 0,
+            "maximum": 2,
+            "type": "integer",
+            "description": "Trace level for all message exchanges during the message publishing process.<br/>- `0`: Basic events during message publish will be recorded as Spans.<br/>  Including 'client.connect', 'client.authz', 'message.route', 'message.forward', 'message.handle_forward', 'broker.publish'.<br/>- `1`: In addition to basic events.<br/>  The events 'broker.puback', 'client.puback', 'broker.pubrec', 'client.pubrec' will be recorded as Spans.<br/>  That is, the first response packet in the QoS1 or QoS2 message interaction.<br/>- `2`: In addition to level 1.<br/>  The events 'broker.pubrel', 'client.pubrel', 'broker.pubcomp', 'client.pubcomp' will be recorded as Spans.",
+            "minimum": 0,
+            "example": 0
+          },
+          "clientid_match_rules_max": {
+            "default": 30,
+            "type": "integer",
+            "description": "Maximum length of the whitelist for clientid matching.",
+            "minimum": 1
+          },
+          "topic_match_rules_max": {
+            "default": 30,
+            "type": "integer",
+            "description": "Maximum length of the whitelist based for topic matching.",
+            "minimum": 1
+          },
+          "sample_ratio": {
+            "default": "10%",
+            "type": "string",
+            "description": "Background tracing sample ratio for the listed event types.",
+            "example": "12%"
+          },
+          "client_connect_disconnect": {
+            "default": false,
+            "type": "boolean",
+            "description": "Enable/disable background tracing for all clients' connect/disconnect events at the configured sample ratio."
+          },
+          "client_subscribe_unsubscribe": {
+            "default": false,
+            "type": "boolean",
+            "description": "Enable/disable background tracing for all clients' subscribe/unsubscribe at the configured sample ratio."
+          },
+          "client_messaging": {
+            "default": false,
+            "type": "boolean",
+            "description": "Enable/disable background messaging events for all clients at the configured sample ratio and trace-level."
           }
         },
         "type": "object"
@@ -20787,6 +20870,15 @@
             "description": "S3 端点的端口。",
             "minimum": 1
           },
+          "access_method": {
+            "default": "path",
+            "type": "string",
+            "enum": [
+              "path",
+              "vhost"
+            ],
+            "description": "Method to be used to access the bucket through HTTP API."
+          },
           "transport_options": {
             "description": "S3 客户端使用的 HTTP 传输层选项。",
             "$ref": "#/components/schemas/s3.transport_options"
@@ -26427,10 +26519,24 @@
       },
       "opentelemetry.trace_filter": {
         "properties": {
+          "trace_mode": {
+            "default": "legacy",
+            "type": "string",
+            "enum": [
+              "legacy",
+              "e2e"
+            ],
+            "description": "OpenTelemetry tracing mode.<br/>- `legacy`: follow the old tracing method, only trace message publishing and delivery.<br/>  Span names will be compatible to versions before 5.9.<br/>- `e2e`: end-to-end tracing mode. All client behaviors will be traced:<br/>  - connect and disconnect<br/>  - subscribe and unsubscribe<br/>  - messaging events such as `PUBLISH`, `PUBACK`, `PUBREL` etc.<br/>  When enabled (for each type of events), there will be a background tracing for all clients at the configured sample ratio.<br/>  From the dashboard, one can also add additional trace whitelist on top of the background tracing at full volume for a list of clients or topics.<br/>  See dashboard or API documents for more details.<br/>  More control and sampling options can be provided in `e2e_tracing_options`"
+          },
           "trace_all": {
             "default": false,
             "type": "boolean",
             "description": "如果启用，将追踪所有发布的消息，如果无法从消息中提取追踪 ID，则生成新的追踪 ID。<br/>否则，只追踪带有追踪上下文的消息。默认禁用。"
+          },
+          "e2e_tracing_options": {
+            "default": {},
+            "description": "End-to-end tracing options",
+            "$ref": "#/components/schemas/opentelemetry.e2e_tracing_options"
           }
         },
         "type": "object"
@@ -28086,6 +28192,15 @@
             "type": "integer",
             "description": "S3 端点的端口。",
             "minimum": 1
+          },
+          "access_method": {
+            "default": "path",
+            "type": "string",
+            "enum": [
+              "path",
+              "vhost"
+            ],
+            "description": "Method to be used to access the bucket through HTTP API."
           },
           "transport_options": {
             "description": "S3 客户端使用的 HTTP 传输层选项。",
@@ -33962,6 +34077,15 @@
             "description": "S3 端点的端口。",
             "minimum": 1
           },
+          "access_method": {
+            "default": "path",
+            "type": "string",
+            "enum": [
+              "path",
+              "vhost"
+            ],
+            "description": "Method to be used to access the bucket through HTTP API."
+          },
           "transport_options": {
             "description": "S3 客户端使用的 HTTP 传输层选项。",
             "$ref": "#/components/schemas/s3.transport_options"
@@ -34765,6 +34889,11 @@
             "default": true,
             "type": "boolean",
             "description": "连接的 TCP_NODELAY 标识"
+          },
+          "nolinger": {
+            "default": false,
+            "type": "boolean",
+            "description": "When enabled, `SO_LINGER` flag is set as `(onoff=1, linger=0)`, which means the TCP socket is to be closed immediately by sending a TCP-RST packet,<br/>discarding any unsent data and skipping the graceful close steps, including CLOSE_WAIT, FIN_WAIT, and TIME_WAIT."
           },
           "reuseaddr": {
             "default": true,
@@ -39769,6 +39898,15 @@
             "description": "S3 端点的端口。",
             "minimum": 1
           },
+          "access_method": {
+            "default": "path",
+            "type": "string",
+            "enum": [
+              "path",
+              "vhost"
+            ],
+            "description": "Method to be used to access the bucket through HTTP API."
+          },
           "transport_options": {
             "description": "S3 客户端使用的 HTTP 传输层选项。",
             "$ref": "#/components/schemas/s3.transport_options"
@@ -42489,15 +42627,6 @@
             "description": "连接到 HTTP 服务器的超时时间。",
             "example": "32s"
           },
-          "pool_type": {
-            "default": "random",
-            "type": "string",
-            "enum": [
-              "random",
-              "hash"
-            ],
-            "description": "连接池类型。可以是random、hash之一。"
-          },
           "pool_size": {
             "default": 8,
             "type": "integer",
@@ -42505,8 +42634,9 @@
             "minimum": 1
           },
           "enable_pipelining": {
-            "default": 100,
+            "default": 0,
             "type": "integer",
+            "deprecated": true,
             "description": "一个正整数。是否连续发送 HTTP 请求，当设置为1时，意味着在发送每个 HTTP 请求后，需要等待服务器返回，然后继续发送下一个请求。",
             "minimum": 1
           },
@@ -42648,8 +42778,8 @@
             "type": "string",
             "enum": [
               "ldap",
-              "oidc",
-              "saml"
+              "saml",
+              "oidc"
             ],
             "description": "----"
           },
@@ -47625,7 +47755,7 @@
           "site": {
             "type": "string",
             "description": "Site ID",
-            "example": "368BB1A145C500E6"
+            "example": "10E2017C955B892B"
           },
           "status": {
             "type": "string",
@@ -52262,11 +52392,11 @@
           "ldap": {
             "$ref": "#/components/schemas/sso.ldap"
           },
-          "oidc": {
-            "$ref": "#/components/schemas/sso.oidc"
-          },
           "saml": {
             "$ref": "#/components/schemas/dashboard.saml"
+          },
+          "oidc": {
+            "$ref": "#/components/schemas/sso.oidc"
           }
         },
         "type": "object"
@@ -57319,13 +57449,13 @@
             "application/json": {
               "examples": {
                 "evacuation": {
-                  "conn_evict_rate": 100,
+                  "wait_takeover": "10s",
                   "sess_evict_rate": 100,
+                  "conn_evict_rate": 100,
+                  "wait_health_check": "10s",
                   "migrate_to": [
                     "othernode@127.0.0.1"
                   ],
-                  "wait_takeover": "10s",
-                  "wait_health_check": "10s",
                   "redirect_to": "othernode:1883"
                 }
               },
@@ -61253,7 +61383,7 @@
                         "name": "my_avro_schema",
                         "type": "avro",
                         "description": "My Avro Schema",
-                        "source": "{\"type\":\"record\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
+                        "source": "{\"type\":\"record\",\"name\":\"test\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
                       }
                     ]
                   }
@@ -61305,7 +61435,7 @@
                       "name": "my_avro_schema",
                       "type": "avro",
                       "description": "My Avro Schema",
-                      "source": "{\"type\":\"record\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
+                      "source": "{\"type\":\"record\",\"name\":\"test\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
                     },
                     "summary": "Avro"
                   }
@@ -61359,7 +61489,7 @@
                     "name": "my_avro_schema",
                     "type": "avro",
                     "description": "My Avro Schema",
-                    "source": "{\"type\":\"record\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
+                    "source": "{\"type\":\"record\",\"name\":\"test\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
                   },
                   "summary": "Avro"
                 }
@@ -63528,8 +63658,8 @@
                   "types": {
                     "value": [
                       "rabbitmq",
-                      "kafka_consumer",
                       "gcp_pubsub_consumer",
+                      "kafka_consumer",
                       "mqtt"
                     ],
                     "summary": "Source types"
@@ -63541,8 +63671,8 @@
                     "type": "string",
                     "enum": [
                       "rabbitmq",
-                      "kafka_consumer",
                       "gcp_pubsub_consumer",
+                      "kafka_consumer",
                       "mqtt"
                     ]
                   }
@@ -63715,82 +63845,82 @@
                   "lwm2m_client": {
                     "value": {
                       "recv_oct": 56,
-                      "awaiting_rel_cnt": 0,
-                      "endpoint_name": "urn:imei:154928475237123",
-                      "mqueue_max": "infinity",
-                      "inflight_max": "infinity",
-                      "subscriptions_max": "infinity",
-                      "awaiting_rel_max": "infinity",
-                      "keepalive": 0,
-                      "node": "emqx@127.0.0.1",
                       "subscriptions_cnt": 0,
-                      "send_cnt": 1,
-                      "mqueue_dropped": 0,
-                      "clean_start": true,
-                      "mailbox_len": 0,
-                      "disconnected_at": null,
-                      "proto_name": "LwM2M",
-                      "proto_ver": "1.0",
-                      "send_oct": 61,
-                      "heap_size": 4185,
-                      "mqueue_len": 0,
-                      "username": "guest",
-                      "recv_pkt": 1,
-                      "ip_address": "127.0.0.1",
-                      "port": 50675,
-                      "recv_msg": 0,
-                      "created_at": "2021-12-07T10:44:02.721+08:00",
-                      "clientid": "MzAyMzEzNTUwNzk1NDA1MzYyMzIwNzUxNjQwMTY1NzQ0NjE",
-                      "inflight_cnt": 0,
                       "send_msg": 0,
+                      "awaiting_rel_max": "infinity",
+                      "proto_name": "LwM2M",
+                      "keepalive": 0,
+                      "mqueue_len": 0,
+                      "node": "emqx@127.0.0.1",
+                      "send_cnt": 1,
+                      "awaiting_rel_cnt": 0,
+                      "username": "guest",
+                      "mailbox_len": 0,
                       "lifetime": 86400,
                       "connected_at": "2021-12-07T10:44:02.721+08:00",
+                      "recv_msg": 0,
+                      "send_oct": 61,
+                      "proto_ver": "1.0",
+                      "heap_size": 4185,
+                      "recv_pkt": 1,
+                      "clean_start": true,
+                      "clientid": "MzAyMzEzNTUwNzk1NDA1MzYyMzIwNzUxNjQwMTY1NzQ0NjE",
+                      "inflight_cnt": 0,
+                      "port": 50675,
+                      "mqueue_dropped": 0,
                       "expiry_interval": 0,
+                      "is_bridge": false,
+                      "inflight_max": "infinity",
+                      "disconnected_at": null,
+                      "send_pkt": 1,
+                      "created_at": "2021-12-07T10:44:02.721+08:00",
+                      "mqueue_max": "infinity",
+                      "endpoint_name": "urn:imei:154928475237123",
                       "connected": true,
                       "reductions": 72022,
-                      "send_pkt": 1,
                       "recv_cnt": 1,
-                      "is_bridge": false
+                      "ip_address": "127.0.0.1",
+                      "subscriptions_max": "infinity"
                     },
                     "summary": "LwM2M client info"
                   },
                   "general_client": {
                     "value": {
                       "recv_oct": 56,
-                      "awaiting_rel_cnt": 0,
-                      "mqueue_max": "infinity",
-                      "inflight_max": "infinity",
-                      "subscriptions_max": "infinity",
-                      "awaiting_rel_max": "infinity",
-                      "keepalive": 0,
-                      "node": "emqx@127.0.0.1",
                       "subscriptions_cnt": 0,
-                      "send_cnt": 1,
-                      "mqueue_dropped": 0,
-                      "clean_start": true,
-                      "mailbox_len": 0,
-                      "disconnected_at": null,
+                      "send_msg": 0,
+                      "awaiting_rel_max": "infinity",
                       "proto_name": "STOMP",
-                      "proto_ver": "1.0",
-                      "send_oct": 61,
-                      "heap_size": 4185,
+                      "keepalive": 0,
                       "mqueue_len": 0,
+                      "node": "emqx@127.0.0.1",
+                      "send_cnt": 1,
+                      "awaiting_rel_cnt": 0,
                       "username": "guest",
-                      "recv_pkt": 1,
-                      "ip_address": "127.0.0.1",
-                      "port": 50675,
+                      "mailbox_len": 0,
+                      "connected_at": "2021-12-07T10:44:02.721+08:00",
                       "recv_msg": 0,
-                      "created_at": "2021-12-07T10:44:02.721+08:00",
+                      "send_oct": 61,
+                      "proto_ver": "1.0",
+                      "heap_size": 4185,
+                      "recv_pkt": 1,
+                      "clean_start": true,
                       "clientid": "MzAyMzEzNTUwNzk1NDA1MzYyMzIwNzUxNjQwMTY1NzQ0NjE",
                       "inflight_cnt": 0,
-                      "send_msg": 0,
-                      "connected_at": "2021-12-07T10:44:02.721+08:00",
+                      "port": 50675,
+                      "mqueue_dropped": 0,
                       "expiry_interval": 0,
+                      "is_bridge": false,
+                      "inflight_max": "infinity",
+                      "disconnected_at": null,
+                      "send_pkt": 1,
+                      "created_at": "2021-12-07T10:44:02.721+08:00",
+                      "mqueue_max": "infinity",
                       "connected": true,
                       "reductions": 72022,
-                      "send_pkt": 1,
                       "recv_cnt": 1,
-                      "is_bridge": false
+                      "ip_address": "127.0.0.1",
+                      "subscriptions_max": "infinity"
                     },
                     "summary": "General client info"
                   }
@@ -70881,10 +71011,10 @@
                     "base_url": "http://iotdb.local:18080/",
                     "pool_type": "random",
                     "resource_opts": {
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "enable_pipelining": 100,
                     "iotdb_version": "v1.1.x",
@@ -70964,6 +71094,7 @@
                       "sndbuf": "1024KB",
                       "tcp_keepalive": "none"
                     },
+                    "local_topic": "mqtt/local/topic",
                     "kafka": {
                       "message": {
                         "timestamp": "${.timestamp}",
@@ -70999,7 +71130,6 @@
                       "partition_strategy": "random",
                       "max_linger_time": "5ms"
                     },
-                    "local_topic": "mqtt/local/topic",
                     "min_metadata_refresh_interval": "3s",
                     "bootstrap_hosts": "localhost:9092",
                     "metadata_request_timeout": "4s"
@@ -71020,11 +71150,11 @@
                     "servers": [
                       "127.0.0.1:26379"
                     ],
+                    "sentinel": "mymaster",
                     "resource_opts": {
                       "batch_size": 1,
                       "batch_time": "20ms"
                     },
-                    "sentinel": "mymaster",
                     "redis_type": "sentinel",
                     "local_topic": "local/topic/#",
                     "command_template": [
@@ -71082,11 +71212,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -71129,11 +71259,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, FROM_UNIXTIME(${timestamp}/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -71147,11 +71277,11 @@
                     "max_retries": 3,
                     "aws_secret_access_key": "******",
                     "resource_opts": {
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 104857600,
                       "inflight_window": 100,
                       "query_mode": "async",
-                      "health_check_interval": 15000,
-                      "worker_pool_size": 1
+                      "health_check_interval": 15000
                     },
                     "endpoint": "https://kinesis.us-east-1.amazonaws.com",
                     "partition_key": "key",
@@ -71177,11 +71307,11 @@
                     "request_timeout": "15s",
                     "pool_type": "random",
                     "resource_opts": {
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 104857600,
                       "inflight_window": 100,
                       "query_mode": "async",
-                      "health_check_interval": 15000,
-                      "worker_pool_size": 1
+                      "health_check_interval": 15000
                     },
                     "enable_pipelining": 100,
                     "local_topic": "emqx_http/#"
@@ -71205,11 +71335,11 @@
                     "auto_reconnect": "2s",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "payload_template": "",
                     "routing_key": "my_routing_key",
@@ -71230,11 +71360,11 @@
                     "aws_secret_access_key": "******",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "aws_access_key_id": "root"
@@ -71254,11 +71384,11 @@
                     "sql": "insert into t_mqtt_msg(ts, msgid, mqtt_topic, qos, payload, arrived) values (${ts}, '${id}', '${topic}', ${qos}, '${payload}', ${timestamp})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -71311,11 +71441,11 @@
                     "server": "http://127.0.0.1:4242",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "enabledb": true
                   },
@@ -71370,11 +71500,11 @@
                     "sql": "insert into t_mqtt_msgs(msgid, topic, qos, payload) values (${id}, ${topic}, ${qos}, ${payload})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "sid": "ORCL"
@@ -71527,11 +71657,11 @@
                     "servers": "127.0.0.1:9042",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "keyspace": "mqtt"
@@ -71589,11 +71719,11 @@
                     "sql": "INSERT INTO messages(data, arrived) VALUES ('${payload}', ${timestamp})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "batch_value_separator": ", "
@@ -71614,11 +71744,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload) values ( ${id}, ${topic}, ${qos}, ${payload} )",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -71637,11 +71767,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -71666,28 +71796,28 @@
                     },
                     "kafka": {
                       "max_batch_bytes": "896KB",
-                      "offset_commit_interval_seconds": 5,
-                      "offset_reset_policy": "latest"
+                      "offset_reset_policy": "latest",
+                      "offset_commit_interval_seconds": 5
                     },
                     "min_metadata_refresh_interval": "3s",
                     "topic_mapping": [
                       {
                         "qos": 1,
                         "mqtt_topic": "mqtt/topic/${.offset}",
-                        "payload_template": "${.}",
-                        "kafka_topic": "kafka-topic-1"
+                        "kafka_topic": "kafka-topic-1",
+                        "payload_template": "${.}"
                       },
                       {
                         "qos": 2,
                         "mqtt_topic": "mqtt/topic/2",
-                        "payload_template": "v = ${.value}",
-                        "kafka_topic": "kafka-topic-2"
+                        "kafka_topic": "kafka-topic-2",
+                        "payload_template": "v = ${.value}"
                       }
                     ],
                     "bootstrap_hosts": "localhost:9092",
-                    "metadata_request_timeout": "4s",
                     "value_encoding_mode": "none",
-                    "key_encoding_mode": "none"
+                    "key_encoding_mode": "none",
+                    "metadata_request_timeout": "4s"
                   },
                   "summary": "Kafka Consumer Bridge"
                 },
@@ -71701,11 +71831,11 @@
                     "topic": "TopicTest",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -71724,11 +71854,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -72619,7 +72749,7 @@
                       "name": "my_avro_schema",
                       "type": "avro",
                       "description": "My Avro Schema",
-                      "source": "{\"type\":\"record\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
+                      "source": "{\"type\":\"record\",\"name\":\"test\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
                     },
                     "summary": "Avro"
                   }
@@ -72701,7 +72831,7 @@
                       "name": "my_avro_schema",
                       "type": "avro",
                       "description": "My Avro Schema",
-                      "source": "{\"type\":\"record\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
+                      "source": "{\"type\":\"record\",\"name\":\"test\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
                     },
                     "summary": "Avro"
                   }
@@ -72752,10 +72882,9 @@
               "examples": {
                 "avro_schema": {
                   "value": {
-                    "name": "my_avro_schema",
                     "type": "avro",
                     "description": "My Avro Schema",
-                    "source": "{\"type\":\"record\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
+                    "source": "{\"type\":\"record\",\"name\":\"test\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
                   },
                   "summary": "Avro"
                 }
@@ -73578,9 +73707,6 @@
         },
         "security": [
           {
-            "basicAuth": []
-          },
-          {
             "bearerAuth": []
           }
         ]
@@ -73662,9 +73788,6 @@
           }
         },
         "security": [
-          {
-            "basicAuth": []
-          },
           {
             "bearerAuth": []
           }
@@ -76752,9 +76875,9 @@
                       }
                     ],
                     "resource_opts": {
+                      "worker_pool_size": 16,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "15s"
                     }
                   },
                   {
@@ -76851,12 +76974,12 @@
                     ],
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "batch_time": "0ms",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   {
@@ -76874,11 +76997,11 @@
                       }
                     ],
                     "resource_opts": {
+                      "worker_pool_size": 16,
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   {
@@ -77036,11 +77159,11 @@
                     ],
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -77302,12 +77425,12 @@
                     ],
                     "resource_opts": {
                       "batch_size": 10000,
+                      "worker_pool_size": 16,
                       "batch_time": "60s",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   {
@@ -77430,11 +77553,11 @@
                     ],
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -77469,12 +77592,12 @@
                     ],
                     "resource_opts": {
                       "batch_size": 100,
+                      "worker_pool_size": 16,
                       "batch_time": "10ms",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   {
@@ -77512,8 +77635,8 @@
                         "value": "${.}",
                         "key": "${.clientid}"
                       },
-                      "sync_timeout": "5s",
-                      "pulsar_topic": "test_topic"
+                      "pulsar_topic": "test_topic",
+                      "sync_timeout": "5s"
                     },
                     "connector": "pulsar_connector",
                     "node_status": [
@@ -77611,13 +77734,13 @@
                     "parameters": {
                       "payload_template": "${payload}",
                       "pubsub_topic": "mytopic",
+                      "ordering_key_template": "${payload.ok}",
                       "attributes_template": [
                         {
                           "value": "${payload.attrs.v}",
                           "key": "${payload.attrs.k}"
                         }
-                      ],
-                      "ordering_key_template": "${payload.ok}"
+                      ]
                     },
                     "connector": "my_connector_name",
                     "node_status": [
@@ -77665,11 +77788,11 @@
                     ],
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -77831,9 +77954,9 @@
                         }
                       ],
                       "resource_opts": {
+                        "worker_pool_size": 16,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "15s"
                       }
                     },
                     "summary": "HTTP Action"
@@ -77939,12 +78062,12 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "batch_time": "0ms",
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Azure Blob Storage Direct Upload Action"
@@ -77965,11 +78088,11 @@
                         }
                       ],
                       "resource_opts": {
+                        "worker_pool_size": 16,
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Couchbase Action"
@@ -78142,11 +78265,11 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "max_buffer_bytes": "256MB",
                         "batch_time": "50ms",
                         "inflight_window": 100,
-                        "request_ttl": "45s",
-                        "worker_pool_size": 16
+                        "request_ttl": "45s"
                       },
                       "parameters": {
                         "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -78441,12 +78564,12 @@
                       ],
                       "resource_opts": {
                         "batch_size": 10000,
+                        "worker_pool_size": 16,
                         "batch_time": "60s",
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Snowflake Action"
@@ -78587,11 +78710,11 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "max_buffer_bytes": "256MB",
                         "batch_time": "50ms",
                         "inflight_window": 100,
-                        "request_ttl": "45s",
-                        "worker_pool_size": 16
+                        "request_ttl": "45s"
                       },
                       "parameters": {
                         "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -78629,12 +78752,12 @@
                       ],
                       "resource_opts": {
                         "batch_size": 100,
+                        "worker_pool_size": 16,
                         "batch_time": "10ms",
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Azure Blob Storage Aggregated Upload Action"
@@ -78678,8 +78801,8 @@
                           "value": "${.}",
                           "key": "${.clientid}"
                         },
-                        "sync_timeout": "5s",
-                        "pulsar_topic": "test_topic"
+                        "pulsar_topic": "test_topic",
+                        "sync_timeout": "5s"
                       },
                       "connector": "pulsar_connector",
                       "node_status": [
@@ -78789,13 +78912,13 @@
                       "parameters": {
                         "payload_template": "${payload}",
                         "pubsub_topic": "mytopic",
+                        "ordering_key_template": "${payload.ok}",
                         "attributes_template": [
                           {
                             "value": "${payload.attrs.v}",
                             "key": "${payload.attrs.k}"
                           }
-                        ],
-                        "ordering_key_template": "${payload.ok}"
+                        ]
                       },
                       "connector": "my_connector_name",
                       "node_status": [
@@ -78849,11 +78972,11 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "max_buffer_bytes": "256MB",
                         "batch_time": "50ms",
                         "inflight_window": 100,
-                        "request_ttl": "45s",
-                        "worker_pool_size": 16
+                        "request_ttl": "45s"
                       },
                       "parameters": {
                         "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -79012,9 +79135,9 @@
                     },
                     "connector": "my_http_connector",
                     "resource_opts": {
+                      "worker_pool_size": 16,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "15s"
                     }
                   },
                   "summary": "HTTP Action"
@@ -79101,12 +79224,12 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "batch_time": "0ms",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Azure Blob Storage Direct Upload Action"
@@ -79122,11 +79245,11 @@
                     },
                     "connector": "my_connector",
                     "resource_opts": {
+                      "worker_pool_size": 16,
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Couchbase Action"
@@ -79264,11 +79387,11 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -79492,12 +79615,12 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 10000,
+                      "worker_pool_size": 16,
                       "batch_time": "60s",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Snowflake Action"
@@ -79596,11 +79719,11 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -79633,12 +79756,12 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 100,
+                      "worker_pool_size": 16,
                       "batch_time": "10ms",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Azure Blob Storage Aggregated Upload Action"
@@ -79674,8 +79797,8 @@
                         "value": "${.}",
                         "key": "${.clientid}"
                       },
-                      "sync_timeout": "5s",
-                      "pulsar_topic": "test_topic"
+                      "pulsar_topic": "test_topic",
+                      "sync_timeout": "5s"
                     },
                     "connector": "pulsar_connector",
                     "resource_opts": {
@@ -79761,13 +79884,13 @@
                     "parameters": {
                       "payload_template": "${payload}",
                       "pubsub_topic": "mytopic",
+                      "ordering_key_template": "${payload.ok}",
                       "attributes_template": [
                         {
                           "value": "${payload.attrs.v}",
                           "key": "${payload.attrs.k}"
                         }
-                      ],
-                      "ordering_key_template": "${payload.ok}"
+                      ]
                     },
                     "connector": "my_connector_name",
                     "resource_opts": {
@@ -79801,11 +79924,11 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -80013,7 +80136,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "368BB1A145C500E6"
+            "example": "10E2017C955B892B"
           }
         ],
         "responses": {
@@ -80098,7 +80221,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "368BB1A145C500E6"
+            "example": "10E2017C955B892B"
           }
         ],
         "responses": {
@@ -80627,9 +80750,9 @@
                   "nodes": [
                     "othernode@127.0.0.1"
                   ],
-                  "conn_evict_rate": 10,
-                  "sess_evict_rate": 20,
                   "wait_takeover": "10s",
+                  "sess_evict_rate": 20,
+                  "conn_evict_rate": 10,
                   "wait_health_check": "10s",
                   "rel_sess_threshold": 1.5,
                   "rel_conn_threshold": 1.5,
@@ -81056,10 +81179,10 @@
                       "base_url": "http://iotdb.local:18080/",
                       "pool_type": "random",
                       "resource_opts": {
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "enable_pipelining": 100,
                       "iotdb_version": "v1.1.x",
@@ -81153,6 +81276,7 @@
                           "status": "connected"
                         }
                       ],
+                      "local_topic": "mqtt/local/topic",
                       "kafka": {
                         "message": {
                           "timestamp": "${.timestamp}",
@@ -81188,7 +81312,6 @@
                         "partition_strategy": "random",
                         "max_linger_time": "5ms"
                       },
-                      "local_topic": "mqtt/local/topic",
                       "min_metadata_refresh_interval": "3s",
                       "bootstrap_hosts": "localhost:9092",
                       "metadata_request_timeout": "4s"
@@ -81209,11 +81332,11 @@
                       "servers": [
                         "127.0.0.1:26379"
                       ],
+                      "sentinel": "mymaster",
                       "resource_opts": {
                         "batch_size": 1,
                         "batch_time": "20ms"
                       },
-                      "sentinel": "mymaster",
                       "redis_type": "sentinel",
                       "local_topic": "local/topic/#",
                       "command_template": [
@@ -81278,11 +81401,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -81325,11 +81448,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, FROM_UNIXTIME(${timestamp}/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -81343,11 +81466,11 @@
                       "max_retries": 3,
                       "aws_secret_access_key": "******",
                       "resource_opts": {
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 104857600,
                         "inflight_window": 100,
                         "query_mode": "async",
-                        "health_check_interval": 15000,
-                        "worker_pool_size": 1
+                        "health_check_interval": 15000
                       },
                       "endpoint": "https://kinesis.us-east-1.amazonaws.com",
                       "partition_key": "key",
@@ -81373,11 +81496,11 @@
                       "request_timeout": "15s",
                       "pool_type": "random",
                       "resource_opts": {
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 104857600,
                         "inflight_window": 100,
                         "query_mode": "async",
-                        "health_check_interval": 15000,
-                        "worker_pool_size": 1
+                        "health_check_interval": 15000
                       },
                       "enable_pipelining": 100,
                       "local_topic": "emqx_http/#"
@@ -81401,11 +81524,11 @@
                       "auto_reconnect": "2s",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "payload_template": "",
                       "routing_key": "my_routing_key",
@@ -81426,11 +81549,11 @@
                       "aws_secret_access_key": "******",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "aws_access_key_id": "root"
@@ -81450,11 +81573,11 @@
                       "sql": "insert into t_mqtt_msg(ts, msgid, mqtt_topic, qos, payload, arrived) values (${ts}, '${id}', '${topic}', ${qos}, '${payload}', ${timestamp})",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -81507,11 +81630,11 @@
                       "server": "http://127.0.0.1:4242",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "enabledb": true
                     },
@@ -81566,11 +81689,11 @@
                       "sql": "insert into t_mqtt_msgs(msgid, topic, qos, payload) values (${id}, ${topic}, ${qos}, ${payload})",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "sid": "ORCL"
@@ -81723,11 +81846,11 @@
                       "servers": "127.0.0.1:9042",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "keyspace": "mqtt"
@@ -81785,11 +81908,11 @@
                       "sql": "INSERT INTO messages(data, arrived) VALUES ('${payload}', ${timestamp})",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "batch_value_separator": ", "
@@ -81810,11 +81933,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload) values ( ${id}, ${topic}, ${qos}, ${payload} )",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -81840,11 +81963,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -81876,28 +81999,28 @@
                       ],
                       "kafka": {
                         "max_batch_bytes": "896KB",
-                        "offset_commit_interval_seconds": 5,
-                        "offset_reset_policy": "latest"
+                        "offset_reset_policy": "latest",
+                        "offset_commit_interval_seconds": 5
                       },
                       "min_metadata_refresh_interval": "3s",
                       "topic_mapping": [
                         {
                           "qos": 1,
                           "mqtt_topic": "mqtt/topic/${.offset}",
-                          "payload_template": "${.}",
-                          "kafka_topic": "kafka-topic-1"
+                          "kafka_topic": "kafka-topic-1",
+                          "payload_template": "${.}"
                         },
                         {
                           "qos": 2,
                           "mqtt_topic": "mqtt/topic/2",
-                          "payload_template": "v = ${.value}",
-                          "kafka_topic": "kafka-topic-2"
+                          "kafka_topic": "kafka-topic-2",
+                          "payload_template": "v = ${.value}"
                         }
                       ],
                       "bootstrap_hosts": "localhost:9092",
-                      "metadata_request_timeout": "4s",
                       "value_encoding_mode": "none",
-                      "key_encoding_mode": "none"
+                      "key_encoding_mode": "none",
+                      "metadata_request_timeout": "4s"
                     },
                     "summary": "Kafka Consumer Bridge"
                   },
@@ -81911,11 +82034,11 @@
                       "topic": "TopicTest",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -81941,11 +82064,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -82154,10 +82277,10 @@
                       "base_url": "http://iotdb.local:18080/",
                       "pool_type": "random",
                       "resource_opts": {
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "enable_pipelining": 100,
                       "iotdb_version": "v1.1.x",
@@ -82251,6 +82374,7 @@
                           "status": "connected"
                         }
                       ],
+                      "local_topic": "mqtt/local/topic",
                       "kafka": {
                         "message": {
                           "timestamp": "${.timestamp}",
@@ -82286,7 +82410,6 @@
                         "partition_strategy": "random",
                         "max_linger_time": "5ms"
                       },
-                      "local_topic": "mqtt/local/topic",
                       "min_metadata_refresh_interval": "3s",
                       "bootstrap_hosts": "localhost:9092",
                       "metadata_request_timeout": "4s"
@@ -82307,11 +82430,11 @@
                       "servers": [
                         "127.0.0.1:26379"
                       ],
+                      "sentinel": "mymaster",
                       "resource_opts": {
                         "batch_size": 1,
                         "batch_time": "20ms"
                       },
-                      "sentinel": "mymaster",
                       "redis_type": "sentinel",
                       "local_topic": "local/topic/#",
                       "command_template": [
@@ -82376,11 +82499,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -82423,11 +82546,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, FROM_UNIXTIME(${timestamp}/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -82441,11 +82564,11 @@
                       "max_retries": 3,
                       "aws_secret_access_key": "******",
                       "resource_opts": {
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 104857600,
                         "inflight_window": 100,
                         "query_mode": "async",
-                        "health_check_interval": 15000,
-                        "worker_pool_size": 1
+                        "health_check_interval": 15000
                       },
                       "endpoint": "https://kinesis.us-east-1.amazonaws.com",
                       "partition_key": "key",
@@ -82471,11 +82594,11 @@
                       "request_timeout": "15s",
                       "pool_type": "random",
                       "resource_opts": {
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 104857600,
                         "inflight_window": 100,
                         "query_mode": "async",
-                        "health_check_interval": 15000,
-                        "worker_pool_size": 1
+                        "health_check_interval": 15000
                       },
                       "enable_pipelining": 100,
                       "local_topic": "emqx_http/#"
@@ -82499,11 +82622,11 @@
                       "auto_reconnect": "2s",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "payload_template": "",
                       "routing_key": "my_routing_key",
@@ -82524,11 +82647,11 @@
                       "aws_secret_access_key": "******",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "aws_access_key_id": "root"
@@ -82548,11 +82671,11 @@
                       "sql": "insert into t_mqtt_msg(ts, msgid, mqtt_topic, qos, payload, arrived) values (${ts}, '${id}', '${topic}', ${qos}, '${payload}', ${timestamp})",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -82605,11 +82728,11 @@
                       "server": "http://127.0.0.1:4242",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "enabledb": true
                     },
@@ -82664,11 +82787,11 @@
                       "sql": "insert into t_mqtt_msgs(msgid, topic, qos, payload) values (${id}, ${topic}, ${qos}, ${payload})",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "sid": "ORCL"
@@ -82821,11 +82944,11 @@
                       "servers": "127.0.0.1:9042",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "keyspace": "mqtt"
@@ -82883,11 +83006,11 @@
                       "sql": "INSERT INTO messages(data, arrived) VALUES ('${payload}', ${timestamp})",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "batch_value_separator": ", "
@@ -82908,11 +83031,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload) values ( ${id}, ${topic}, ${qos}, ${payload} )",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -82938,11 +83061,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -82974,28 +83097,28 @@
                       ],
                       "kafka": {
                         "max_batch_bytes": "896KB",
-                        "offset_commit_interval_seconds": 5,
-                        "offset_reset_policy": "latest"
+                        "offset_reset_policy": "latest",
+                        "offset_commit_interval_seconds": 5
                       },
                       "min_metadata_refresh_interval": "3s",
                       "topic_mapping": [
                         {
                           "qos": 1,
                           "mqtt_topic": "mqtt/topic/${.offset}",
-                          "payload_template": "${.}",
-                          "kafka_topic": "kafka-topic-1"
+                          "kafka_topic": "kafka-topic-1",
+                          "payload_template": "${.}"
                         },
                         {
                           "qos": 2,
                           "mqtt_topic": "mqtt/topic/2",
-                          "payload_template": "v = ${.value}",
-                          "kafka_topic": "kafka-topic-2"
+                          "kafka_topic": "kafka-topic-2",
+                          "payload_template": "v = ${.value}"
                         }
                       ],
                       "bootstrap_hosts": "localhost:9092",
-                      "metadata_request_timeout": "4s",
                       "value_encoding_mode": "none",
-                      "key_encoding_mode": "none"
+                      "key_encoding_mode": "none",
+                      "metadata_request_timeout": "4s"
                     },
                     "summary": "Kafka Consumer Bridge"
                   },
@@ -83009,11 +83132,11 @@
                       "topic": "TopicTest",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -83039,11 +83162,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -83246,10 +83369,10 @@
                     "base_url": "http://iotdb.local:18080/",
                     "pool_type": "random",
                     "resource_opts": {
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "enable_pipelining": 100,
                     "iotdb_version": "v1.1.x",
@@ -83327,6 +83450,7 @@
                       "sndbuf": "1024KB",
                       "tcp_keepalive": "none"
                     },
+                    "local_topic": "mqtt/local/topic",
                     "kafka": {
                       "message": {
                         "timestamp": "${.timestamp}",
@@ -83362,7 +83486,6 @@
                       "partition_strategy": "random",
                       "max_linger_time": "5ms"
                     },
-                    "local_topic": "mqtt/local/topic",
                     "min_metadata_refresh_interval": "3s",
                     "bootstrap_hosts": "localhost:9092",
                     "metadata_request_timeout": "4s"
@@ -83381,11 +83504,11 @@
                     "servers": [
                       "127.0.0.1:26379"
                     ],
+                    "sentinel": "mymaster",
                     "resource_opts": {
                       "batch_size": 1,
                       "batch_time": "20ms"
                     },
-                    "sentinel": "mymaster",
                     "redis_type": "sentinel",
                     "local_topic": "local/topic/#",
                     "command_template": [
@@ -83443,11 +83566,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -83488,11 +83611,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, FROM_UNIXTIME(${timestamp}/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -83506,11 +83629,11 @@
                     "max_retries": 3,
                     "aws_secret_access_key": "******",
                     "resource_opts": {
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 104857600,
                       "inflight_window": 100,
                       "query_mode": "async",
-                      "health_check_interval": 15000,
-                      "worker_pool_size": 1
+                      "health_check_interval": 15000
                     },
                     "endpoint": "https://kinesis.us-east-1.amazonaws.com",
                     "partition_key": "key",
@@ -83534,11 +83657,11 @@
                     "request_timeout": "15s",
                     "pool_type": "random",
                     "resource_opts": {
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 104857600,
                       "inflight_window": 100,
                       "query_mode": "async",
-                      "health_check_interval": 15000,
-                      "worker_pool_size": 1
+                      "health_check_interval": 15000
                     },
                     "enable_pipelining": 100,
                     "local_topic": "emqx_http/#"
@@ -83562,11 +83685,11 @@
                     "auto_reconnect": "2s",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "payload_template": "",
                     "routing_key": "my_routing_key",
@@ -83587,11 +83710,11 @@
                     "aws_secret_access_key": "******",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "aws_access_key_id": "root"
@@ -83611,11 +83734,11 @@
                     "sql": "insert into t_mqtt_msg(ts, msgid, mqtt_topic, qos, payload, arrived) values (${ts}, '${id}', '${topic}', ${qos}, '${payload}', ${timestamp})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -83668,11 +83791,11 @@
                     "server": "http://127.0.0.1:4242",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "enabledb": true
                   },
@@ -83727,11 +83850,11 @@
                     "sql": "insert into t_mqtt_msgs(msgid, topic, qos, payload) values (${id}, ${topic}, ${qos}, ${payload})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "sid": "ORCL"
@@ -83880,11 +84003,11 @@
                     "servers": "127.0.0.1:9042",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "keyspace": "mqtt"
@@ -83942,11 +84065,11 @@
                     "sql": "INSERT INTO messages(data, arrived) VALUES ('${payload}', ${timestamp})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "batch_value_separator": ", "
@@ -83967,11 +84090,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload) values ( ${id}, ${topic}, ${qos}, ${payload} )",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -83990,11 +84113,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -84017,28 +84140,28 @@
                     },
                     "kafka": {
                       "max_batch_bytes": "896KB",
-                      "offset_commit_interval_seconds": 5,
-                      "offset_reset_policy": "latest"
+                      "offset_reset_policy": "latest",
+                      "offset_commit_interval_seconds": 5
                     },
                     "min_metadata_refresh_interval": "3s",
                     "topic_mapping": [
                       {
                         "qos": 1,
                         "mqtt_topic": "mqtt/topic/${.offset}",
-                        "payload_template": "${.}",
-                        "kafka_topic": "kafka-topic-1"
+                        "kafka_topic": "kafka-topic-1",
+                        "payload_template": "${.}"
                       },
                       {
                         "qos": 2,
                         "mqtt_topic": "mqtt/topic/2",
-                        "payload_template": "v = ${.value}",
-                        "kafka_topic": "kafka-topic-2"
+                        "kafka_topic": "kafka-topic-2",
+                        "payload_template": "v = ${.value}"
                       }
                     ],
                     "bootstrap_hosts": "localhost:9092",
-                    "metadata_request_timeout": "4s",
                     "value_encoding_mode": "none",
-                    "key_encoding_mode": "none"
+                    "key_encoding_mode": "none",
+                    "metadata_request_timeout": "4s"
                   },
                   "summary": "Kafka Consumer Bridge"
                 },
@@ -84052,11 +84175,11 @@
                     "topic": "TopicTest",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -84075,11 +84198,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -84623,11 +84746,11 @@
                       "nl": 0,
                       "topic": "stomp/topic",
                       "qos": 1,
+                      "rap": 0,
+                      "rh": 0,
                       "sub_props": {
                         "subid": "10"
-                      },
-                      "rap": 0,
-                      "rh": 0
+                      }
                     },
                     "summary": "A STOMP subscription"
                   }
@@ -84704,11 +84827,11 @@
                     "nl": 0,
                     "topic": "stomp/topic",
                     "qos": 1,
+                    "rap": 0,
+                    "rh": 0,
                     "sub_props": {
                       "subid": "10"
-                    },
-                    "rap": 0,
-                    "rh": 0
+                    }
                   },
                   "summary": "A STOMP subscription"
                 }
@@ -85831,8 +85954,8 @@
               "type": "string",
               "enum": [
                 "ldap",
-                "oidc",
-                "saml"
+                "saml",
+                "oidc"
               ]
             },
             "example": "ldap"
@@ -85950,10 +86073,10 @@
               "schema": {
                 "oneOf": [
                   {
-                    "$ref": "#/components/schemas/dashboard.login"
+                    "$ref": "#/components/schemas/sso.login"
                   },
                   {
-                    "$ref": "#/components/schemas/sso.login"
+                    "$ref": "#/components/schemas/dashboard.login"
                   },
                   {
                     "$ref": "#/components/schemas/sso.login"
@@ -86373,17 +86496,17 @@
           "content": {
             "application/json": {
               "examples": {
-                "front": {
-                  "value": {
-                    "position": "front"
-                  },
-                  "summary": "front example"
-                },
                 "rear": {
                   "value": {
                     "position": "rear"
                   },
                   "summary": "rear example"
+                },
+                "front": {
+                  "value": {
+                    "position": "front"
+                  },
+                  "summary": "front example"
                 },
                 "relative_after": {
                   "value": {
@@ -88046,9 +88169,9 @@
                     },
                     "connector": "my_http_connector",
                     "resource_opts": {
+                      "worker_pool_size": 16,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "15s"
                     }
                   },
                   "summary": "HTTP Action"
@@ -88135,12 +88258,12 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "batch_time": "0ms",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Azure Blob Storage Direct Upload Action"
@@ -88156,11 +88279,11 @@
                     },
                     "connector": "my_connector",
                     "resource_opts": {
+                      "worker_pool_size": 16,
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Couchbase Action"
@@ -88298,11 +88421,11 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -88526,12 +88649,12 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 10000,
+                      "worker_pool_size": 16,
                       "batch_time": "60s",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Snowflake Action"
@@ -88630,11 +88753,11 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -88667,12 +88790,12 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 100,
+                      "worker_pool_size": 16,
                       "batch_time": "10ms",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Azure Blob Storage Aggregated Upload Action"
@@ -88708,8 +88831,8 @@
                         "value": "${.}",
                         "key": "${.clientid}"
                       },
-                      "sync_timeout": "5s",
-                      "pulsar_topic": "test_topic"
+                      "pulsar_topic": "test_topic",
+                      "sync_timeout": "5s"
                     },
                     "connector": "pulsar_connector",
                     "resource_opts": {
@@ -88795,13 +88918,13 @@
                     "parameters": {
                       "payload_template": "${payload}",
                       "pubsub_topic": "mytopic",
+                      "ordering_key_template": "${payload.ok}",
                       "attributes_template": [
                         {
                           "value": "${payload.attrs.v}",
                           "key": "${payload.attrs.k}"
                         }
-                      ],
-                      "ordering_key_template": "${payload.ok}"
+                      ]
                     },
                     "connector": "my_connector_name",
                     "resource_opts": {
@@ -88835,11 +88958,11 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -89223,17 +89346,17 @@
           "content": {
             "application/json": {
               "examples": {
-                "front": {
-                  "value": {
-                    "position": "front"
-                  },
-                  "summary": "absolute position 'front'"
-                },
                 "rear": {
                   "value": {
                     "position": "rear"
                   },
                   "summary": "absolute position 'rear'"
+                },
+                "front": {
+                  "value": {
+                    "position": "front"
+                  },
+                  "summary": "absolute position 'front'"
                 },
                 "related_after": {
                   "value": {
@@ -90041,8 +90164,8 @@
                     "type": "string",
                     "enum": [
                       "ldap",
-                      "oidc",
-                      "saml"
+                      "saml",
+                      "oidc"
                     ]
                   }
                 }
@@ -90178,35 +90301,35 @@
                       "rabbitmq",
                       "cassandra",
                       "rocketmq",
-                      "sqlserver",
-                      "pulsar",
-                      "syskeeper_forwarder",
-                      "hstreamdb",
-                      "mongodb",
-                      "greptimedb",
                       "kafka_producer",
+                      "sqlserver",
+                      "mongodb",
+                      "hstreamdb",
+                      "pulsar",
                       "confluent_producer",
-                      "gcp_pubsub_producer",
-                      "influxdb",
                       "iotdb",
+                      "influxdb",
+                      "greptimedb",
+                      "gcp_pubsub_producer",
                       "azure_event_hub_producer",
-                      "kinesis",
-                      "s3",
-                      "redis",
-                      "datalayers",
+                      "syskeeper_forwarder",
                       "opents",
+                      "datalayers",
+                      "s3",
+                      "kinesis",
+                      "redis",
                       "mqtt",
                       "snowflake",
+                      "timescale",
+                      "clickhouse",
+                      "azure_blob_storage",
                       "tdengine",
                       "couchbase",
                       "oracle",
-                      "clickhouse",
-                      "timescale",
-                      "azure_blob_storage",
                       "matrix",
                       "elasticsearch",
-                      "mysql",
                       "pgsql",
+                      "mysql",
                       "dynamo"
                     ],
                     "summary": "Action types"
@@ -90221,35 +90344,35 @@
                       "rabbitmq",
                       "cassandra",
                       "rocketmq",
-                      "sqlserver",
-                      "pulsar",
-                      "syskeeper_forwarder",
-                      "hstreamdb",
-                      "mongodb",
-                      "greptimedb",
                       "kafka_producer",
+                      "sqlserver",
+                      "mongodb",
+                      "hstreamdb",
+                      "pulsar",
                       "confluent_producer",
-                      "gcp_pubsub_producer",
-                      "influxdb",
                       "iotdb",
+                      "influxdb",
+                      "greptimedb",
+                      "gcp_pubsub_producer",
                       "azure_event_hub_producer",
-                      "kinesis",
-                      "s3",
-                      "redis",
-                      "datalayers",
+                      "syskeeper_forwarder",
                       "opents",
+                      "datalayers",
+                      "s3",
+                      "kinesis",
+                      "redis",
                       "mqtt",
                       "snowflake",
+                      "timescale",
+                      "clickhouse",
+                      "azure_blob_storage",
                       "tdengine",
                       "couchbase",
                       "oracle",
-                      "clickhouse",
-                      "timescale",
-                      "azure_blob_storage",
                       "matrix",
                       "elasticsearch",
-                      "mysql",
                       "pgsql",
+                      "mysql",
                       "dynamo"
                     ]
                   }
@@ -90533,8 +90656,8 @@
               "enum": [
                 "local",
                 "ldap",
-                "oidc",
-                "saml"
+                "saml",
+                "oidc"
               ]
             },
             "example": "local"
@@ -90654,8 +90777,8 @@
               "enum": [
                 "local",
                 "ldap",
-                "oidc",
-                "saml"
+                "saml",
+                "oidc"
               ]
             },
             "example": "local"
@@ -90929,7 +91052,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "368BB1A145C500E6"
+            "example": "10E2017C955B892B"
           }
         ],
         "responses": {
@@ -91564,8 +91687,8 @@
                       ],
                       "idle_timeout": "30s",
                       "mountpoint": "coap/",
-                      "enable_stats": true,
                       "connection_required": false,
+                      "enable_stats": true,
                       "notify_type": "qos",
                       "publish_qos": "coap",
                       "subscribe_qos": "coap"
@@ -91897,8 +92020,8 @@
                     "heartbeat": "30s",
                     "idle_timeout": "30s",
                     "mountpoint": "coap2/",
-                    "enable_stats": true,
                     "connection_required": false,
+                    "enable_stats": true,
                     "notify_type": "qos",
                     "publish_qos": "coap",
                     "subscribe_qos": "coap"
@@ -92155,9 +92278,9 @@
                         }
                       ],
                       "resource_opts": {
+                        "worker_pool_size": 16,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "15s"
                       }
                     },
                     "summary": "HTTP Action"
@@ -92263,12 +92386,12 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "batch_time": "0ms",
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Azure Blob Storage Direct Upload Action"
@@ -92289,11 +92412,11 @@
                         }
                       ],
                       "resource_opts": {
+                        "worker_pool_size": 16,
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Couchbase Action"
@@ -92466,11 +92589,11 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "max_buffer_bytes": "256MB",
                         "batch_time": "50ms",
                         "inflight_window": 100,
-                        "request_ttl": "45s",
-                        "worker_pool_size": 16
+                        "request_ttl": "45s"
                       },
                       "parameters": {
                         "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -92765,12 +92888,12 @@
                       ],
                       "resource_opts": {
                         "batch_size": 10000,
+                        "worker_pool_size": 16,
                         "batch_time": "60s",
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Snowflake Action"
@@ -92911,11 +93034,11 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "max_buffer_bytes": "256MB",
                         "batch_time": "50ms",
                         "inflight_window": 100,
-                        "request_ttl": "45s",
-                        "worker_pool_size": 16
+                        "request_ttl": "45s"
                       },
                       "parameters": {
                         "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -92953,12 +93076,12 @@
                       ],
                       "resource_opts": {
                         "batch_size": 100,
+                        "worker_pool_size": 16,
                         "batch_time": "10ms",
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Azure Blob Storage Aggregated Upload Action"
@@ -93002,8 +93125,8 @@
                           "value": "${.}",
                           "key": "${.clientid}"
                         },
-                        "sync_timeout": "5s",
-                        "pulsar_topic": "test_topic"
+                        "pulsar_topic": "test_topic",
+                        "sync_timeout": "5s"
                       },
                       "connector": "pulsar_connector",
                       "node_status": [
@@ -93113,13 +93236,13 @@
                       "parameters": {
                         "payload_template": "${payload}",
                         "pubsub_topic": "mytopic",
+                        "ordering_key_template": "${payload.ok}",
                         "attributes_template": [
                           {
                             "value": "${payload.attrs.v}",
                             "key": "${payload.attrs.k}"
                           }
-                        ],
-                        "ordering_key_template": "${payload.ok}"
+                        ]
                       },
                       "connector": "my_connector_name",
                       "node_status": [
@@ -93173,11 +93296,11 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "max_buffer_bytes": "256MB",
                         "batch_time": "50ms",
                         "inflight_window": 100,
-                        "request_ttl": "45s",
-                        "worker_pool_size": 16
+                        "request_ttl": "45s"
                       },
                       "parameters": {
                         "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -93371,9 +93494,9 @@
                         }
                       ],
                       "resource_opts": {
+                        "worker_pool_size": 16,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "15s"
                       }
                     },
                     "summary": "HTTP Action"
@@ -93479,12 +93602,12 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "batch_time": "0ms",
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Azure Blob Storage Direct Upload Action"
@@ -93505,11 +93628,11 @@
                         }
                       ],
                       "resource_opts": {
+                        "worker_pool_size": 16,
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Couchbase Action"
@@ -93682,11 +93805,11 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "max_buffer_bytes": "256MB",
                         "batch_time": "50ms",
                         "inflight_window": 100,
-                        "request_ttl": "45s",
-                        "worker_pool_size": 16
+                        "request_ttl": "45s"
                       },
                       "parameters": {
                         "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -93981,12 +94104,12 @@
                       ],
                       "resource_opts": {
                         "batch_size": 10000,
+                        "worker_pool_size": 16,
                         "batch_time": "60s",
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Snowflake Action"
@@ -94127,11 +94250,11 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "max_buffer_bytes": "256MB",
                         "batch_time": "50ms",
                         "inflight_window": 100,
-                        "request_ttl": "45s",
-                        "worker_pool_size": 16
+                        "request_ttl": "45s"
                       },
                       "parameters": {
                         "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -94169,12 +94292,12 @@
                       ],
                       "resource_opts": {
                         "batch_size": 100,
+                        "worker_pool_size": 16,
                         "batch_time": "10ms",
                         "inflight_window": 100,
                         "request_ttl": "45s",
                         "query_mode": "sync",
-                        "health_check_interval": "30s",
-                        "worker_pool_size": 16
+                        "health_check_interval": "30s"
                       }
                     },
                     "summary": "Azure Blob Storage Aggregated Upload Action"
@@ -94218,8 +94341,8 @@
                           "value": "${.}",
                           "key": "${.clientid}"
                         },
-                        "sync_timeout": "5s",
-                        "pulsar_topic": "test_topic"
+                        "pulsar_topic": "test_topic",
+                        "sync_timeout": "5s"
                       },
                       "connector": "pulsar_connector",
                       "node_status": [
@@ -94329,13 +94452,13 @@
                       "parameters": {
                         "payload_template": "${payload}",
                         "pubsub_topic": "mytopic",
+                        "ordering_key_template": "${payload.ok}",
                         "attributes_template": [
                           {
                             "value": "${payload.attrs.v}",
                             "key": "${payload.attrs.k}"
                           }
-                        ],
-                        "ordering_key_template": "${payload.ok}"
+                        ]
                       },
                       "connector": "my_connector_name",
                       "node_status": [
@@ -94389,11 +94512,11 @@
                       ],
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 16,
                         "max_buffer_bytes": "256MB",
                         "batch_time": "50ms",
                         "inflight_window": 100,
-                        "request_ttl": "45s",
-                        "worker_pool_size": 16
+                        "request_ttl": "45s"
                       },
                       "parameters": {
                         "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -94594,9 +94717,9 @@
                     },
                     "connector": "my_http_connector",
                     "resource_opts": {
+                      "worker_pool_size": 16,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "15s"
                     }
                   },
                   "summary": "HTTP Action"
@@ -94677,12 +94800,12 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "batch_time": "0ms",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Azure Blob Storage Direct Upload Action"
@@ -94696,11 +94819,11 @@
                     },
                     "connector": "my_connector",
                     "resource_opts": {
+                      "worker_pool_size": 16,
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Couchbase Action"
@@ -94830,11 +94953,11 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -95034,12 +95157,12 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 10000,
+                      "worker_pool_size": 16,
                       "batch_time": "60s",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Snowflake Action"
@@ -95128,11 +95251,11 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -95163,12 +95286,12 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 100,
+                      "worker_pool_size": 16,
                       "batch_time": "10ms",
                       "inflight_window": 100,
                       "request_ttl": "45s",
                       "query_mode": "sync",
-                      "health_check_interval": "30s",
-                      "worker_pool_size": 16
+                      "health_check_interval": "30s"
                     }
                   },
                   "summary": "Azure Blob Storage Aggregated Upload Action"
@@ -95200,8 +95323,8 @@
                         "value": "${.}",
                         "key": "${.clientid}"
                       },
-                      "sync_timeout": "5s",
-                      "pulsar_topic": "test_topic"
+                      "pulsar_topic": "test_topic",
+                      "sync_timeout": "5s"
                     },
                     "connector": "pulsar_connector",
                     "resource_opts": {
@@ -95277,13 +95400,13 @@
                     "parameters": {
                       "payload_template": "${payload}",
                       "pubsub_topic": "mytopic",
+                      "ordering_key_template": "${payload.ok}",
                       "attributes_template": [
                         {
                           "value": "${payload.attrs.v}",
                           "key": "${payload.attrs.k}"
                         }
-                      ],
-                      "ordering_key_template": "${payload.ok}"
+                      ]
                     },
                     "connector": "my_connector_name",
                     "resource_opts": {
@@ -95315,11 +95438,11 @@
                     "connector": "my_connector",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 16,
                       "max_buffer_bytes": "256MB",
                       "batch_time": "50ms",
                       "inflight_window": 100,
-                      "request_ttl": "45s",
-                      "worker_pool_size": 16
+                      "request_ttl": "45s"
                     },
                     "parameters": {
                       "sql": "INSERT INTO client_events(clientid, event, created_at)VALUES (\n  ${clientid},\n  ${event},\n  TO_TIMESTAMP((${timestamp} :: bigint))\n)"
@@ -100917,7 +101040,18 @@
                   },
                   "traces": {
                     "filter": {
-                      "trace_all": false
+                      "e2e_tracing_options": {
+                        "client_publish": true,
+                        "attribute_meta_value": "emqxcl",
+                        "client_connect_disconnect": true,
+                        "client_subscribe_unsubscribe": true,
+                        "clientid_match_rules_max": 30,
+                        "msg_trace_level": 0,
+                        "sample_ratio": "10%",
+                        "topic_match_rules_max": 30
+                      },
+                      "trace_all": false,
+                      "trace_mode": "legacy"
                     },
                     "enable": true
                   },
@@ -100963,7 +101097,18 @@
                   },
                   "traces": {
                     "filter": {
-                      "trace_all": false
+                      "e2e_tracing_options": {
+                        "client_publish": true,
+                        "attribute_meta_value": "emqxcl",
+                        "client_connect_disconnect": true,
+                        "client_subscribe_unsubscribe": true,
+                        "clientid_match_rules_max": 30,
+                        "msg_trace_level": 0,
+                        "sample_ratio": "10%",
+                        "topic_match_rules_max": 30
+                      },
+                      "trace_all": false,
+                      "trace_mode": "legacy"
                     },
                     "enable": true
                   },
@@ -101014,7 +101159,18 @@
                 },
                 "traces": {
                   "filter": {
-                    "trace_all": false
+                    "e2e_tracing_options": {
+                      "client_publish": true,
+                      "attribute_meta_value": "emqxcl",
+                      "client_connect_disconnect": true,
+                      "client_subscribe_unsubscribe": true,
+                      "clientid_match_rules_max": 30,
+                      "msg_trace_level": 0,
+                      "sample_ratio": "10%",
+                      "topic_match_rules_max": 30
+                    },
+                    "trace_all": false,
+                    "trace_mode": "legacy"
                   },
                   "enable": true
                 },
@@ -101053,8 +101209,8 @@
               "type": "string",
               "enum": [
                 "ldap",
-                "oidc",
-                "saml"
+                "saml",
+                "oidc"
               ]
             },
             "example": "ldap"
@@ -101068,10 +101224,10 @@
                 "schema": {
                   "oneOf": [
                     {
-                      "$ref": "#/components/schemas/dashboard.saml"
+                      "$ref": "#/components/schemas/sso.oidc"
                     },
                     {
-                      "$ref": "#/components/schemas/sso.oidc"
+                      "$ref": "#/components/schemas/dashboard.saml"
                     },
                     {
                       "$ref": "#/components/schemas/sso.ldap"
@@ -101125,8 +101281,8 @@
               "type": "string",
               "enum": [
                 "ldap",
-                "oidc",
-                "saml"
+                "saml",
+                "oidc"
               ]
             },
             "example": "ldap"
@@ -101140,10 +101296,10 @@
                 "schema": {
                   "oneOf": [
                     {
-                      "$ref": "#/components/schemas/dashboard.saml"
+                      "$ref": "#/components/schemas/sso.oidc"
                     },
                     {
-                      "$ref": "#/components/schemas/sso.oidc"
+                      "$ref": "#/components/schemas/dashboard.saml"
                     },
                     {
                       "$ref": "#/components/schemas/sso.ldap"
@@ -101181,10 +101337,10 @@
               "schema": {
                 "oneOf": [
                   {
-                    "$ref": "#/components/schemas/dashboard.saml"
+                    "$ref": "#/components/schemas/sso.oidc"
                   },
                   {
-                    "$ref": "#/components/schemas/sso.oidc"
+                    "$ref": "#/components/schemas/dashboard.saml"
                   },
                   {
                     "$ref": "#/components/schemas/sso.ldap"
@@ -101216,8 +101372,8 @@
               "type": "string",
               "enum": [
                 "ldap",
-                "oidc",
-                "saml"
+                "saml",
+                "oidc"
               ]
             },
             "example": "ldap"
@@ -103040,6 +103196,7 @@
                   "sample": {
                     "value": {
                       "my_registry": {
+                        "name": "test",
                         "type": "confluent",
                         "auth": {
                           "mechanism": "basic",
@@ -103094,14 +103251,18 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "avro_schema": {
+                  "confluent": {
                     "value": {
-                      "name": "my_avro_schema",
-                      "type": "avro",
-                      "description": "My Avro Schema",
-                      "source": "{\"type\":\"record\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
+                      "name": "test",
+                      "type": "confluent",
+                      "auth": {
+                        "mechanism": "basic",
+                        "password": "******",
+                        "username": "cpsruser"
+                      },
+                      "url": "http://confluent_schema_registry:8081"
                     },
-                    "summary": "Avro"
+                    "summary": "Confluent"
                   }
                 },
                 "schema": {
@@ -103142,14 +103303,18 @@
           "content": {
             "application/json": {
               "examples": {
-                "avro_schema": {
+                "confluent": {
                   "value": {
-                    "name": "my_avro_schema",
-                    "type": "avro",
-                    "description": "My Avro Schema",
-                    "source": "{\"type\":\"record\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
+                    "name": "test",
+                    "type": "confluent",
+                    "auth": {
+                      "mechanism": "basic",
+                      "password": "******",
+                      "username": "cpsruser"
+                    },
+                    "url": "http://confluent_schema_registry:8081"
                   },
-                  "summary": "Avro"
+                  "summary": "Confluent"
                 }
               },
               "schema": {
@@ -103201,6 +103366,178 @@
                     }
                   },
                   "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/opentelemetry/whitelist/{type}": {
+      "get": {
+        "description": "Show the list of sampler white list for specific type",
+        "tags": [
+          "Opentelemetry"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/emqx_otel_sampler_api.white_list_type"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "clientid_white_list": {
+                    "value": [
+                      "clientid",
+                      "clientid2"
+                    ],
+                    "summary": "ClientId White list"
+                  },
+                  "topic_white_list": {
+                    "value": [
+                      "topic/#",
+                      "topic/2"
+                    ],
+                    "summary": "Topic White list"
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "description": "Purge white list for specific type",
+        "tags": [
+          "Opentelemetry"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/emqx_otel_sampler_api.white_list_type"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Internal Service Error"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "description": "Update white list for specific type",
+        "tags": [
+          "Opentelemetry"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/emqx_otel_sampler_api.white_list_type"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Created"
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Internal Service Error"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "clientid_white_list": {
+                  "value": [
+                    "clientid",
+                    "clientid2"
+                  ],
+                  "summary": "ClientId White list"
+                },
+                "topic_white_list": {
+                  "value": [
+                    "topic/#",
+                    "topic/2"
+                  ],
+                  "summary": "Topic White list"
+                }
+              },
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
                 }
               }
             }
@@ -107069,10 +107406,10 @@
                     "base_url": "http://iotdb.local:18080/",
                     "pool_type": "random",
                     "resource_opts": {
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "enable_pipelining": 100,
                     "iotdb_version": "v1.1.x",
@@ -107160,6 +107497,7 @@
                         "status": "connected"
                       }
                     ],
+                    "local_topic": "mqtt/local/topic",
                     "kafka": {
                       "message": {
                         "timestamp": "${.timestamp}",
@@ -107195,7 +107533,6 @@
                       "partition_strategy": "random",
                       "max_linger_time": "5ms"
                     },
-                    "local_topic": "mqtt/local/topic",
                     "min_metadata_refresh_interval": "3s",
                     "bootstrap_hosts": "localhost:9092",
                     "metadata_request_timeout": "4s"
@@ -107213,11 +107550,11 @@
                     "servers": [
                       "127.0.0.1:26379"
                     ],
+                    "sentinel": "mymaster",
                     "resource_opts": {
                       "batch_size": 1,
                       "batch_time": "20ms"
                     },
-                    "sentinel": "mymaster",
                     "redis_type": "sentinel",
                     "local_topic": "local/topic/#",
                     "command_template": [
@@ -107276,11 +107613,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -107317,11 +107654,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, FROM_UNIXTIME(${timestamp}/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -107332,11 +107669,11 @@
                     "max_retries": 3,
                     "aws_secret_access_key": "******",
                     "resource_opts": {
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 104857600,
                       "inflight_window": 100,
                       "query_mode": "async",
-                      "health_check_interval": 15000,
-                      "worker_pool_size": 1
+                      "health_check_interval": 15000
                     },
                     "endpoint": "https://kinesis.us-east-1.amazonaws.com",
                     "partition_key": "key",
@@ -107359,11 +107696,11 @@
                     "request_timeout": "15s",
                     "pool_type": "random",
                     "resource_opts": {
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 104857600,
                       "inflight_window": 100,
                       "query_mode": "async",
-                      "health_check_interval": 15000,
-                      "worker_pool_size": 1
+                      "health_check_interval": 15000
                     },
                     "enable_pipelining": 100,
                     "local_topic": "emqx_http/#"
@@ -107384,11 +107721,11 @@
                     "auto_reconnect": "2s",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "payload_template": "",
                     "routing_key": "my_routing_key",
@@ -107406,11 +107743,11 @@
                     "aws_secret_access_key": "******",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "aws_access_key_id": "root"
@@ -107427,11 +107764,11 @@
                     "sql": "insert into t_mqtt_msg(ts, msgid, mqtt_topic, qos, payload, arrived) values (${ts}, '${id}', '${topic}', ${qos}, '${payload}', ${timestamp})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -107475,11 +107812,11 @@
                     "server": "http://127.0.0.1:4242",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "enabledb": true
                   },
@@ -107525,11 +107862,11 @@
                     "sql": "insert into t_mqtt_msgs(msgid, topic, qos, payload) values (${id}, ${topic}, ${qos}, ${payload})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "sid": "ORCL"
@@ -107664,11 +108001,11 @@
                     "servers": "127.0.0.1:9042",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "keyspace": "mqtt"
@@ -107720,11 +108057,11 @@
                     "sql": "INSERT INTO messages(data, arrived) VALUES ('${payload}', ${timestamp})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "batch_value_separator": ", "
@@ -107742,11 +108079,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload) values ( ${id}, ${topic}, ${qos}, ${payload} )",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -107769,11 +108106,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -107802,28 +108139,28 @@
                     ],
                     "kafka": {
                       "max_batch_bytes": "896KB",
-                      "offset_commit_interval_seconds": 5,
-                      "offset_reset_policy": "latest"
+                      "offset_reset_policy": "latest",
+                      "offset_commit_interval_seconds": 5
                     },
                     "min_metadata_refresh_interval": "3s",
                     "topic_mapping": [
                       {
                         "qos": 1,
                         "mqtt_topic": "mqtt/topic/${.offset}",
-                        "payload_template": "${.}",
-                        "kafka_topic": "kafka-topic-1"
+                        "kafka_topic": "kafka-topic-1",
+                        "payload_template": "${.}"
                       },
                       {
                         "qos": 2,
                         "mqtt_topic": "mqtt/topic/2",
-                        "payload_template": "v = ${.value}",
-                        "kafka_topic": "kafka-topic-2"
+                        "kafka_topic": "kafka-topic-2",
+                        "payload_template": "v = ${.value}"
                       }
                     ],
                     "bootstrap_hosts": "localhost:9092",
-                    "metadata_request_timeout": "4s",
                     "value_encoding_mode": "none",
-                    "key_encoding_mode": "none"
+                    "key_encoding_mode": "none",
+                    "metadata_request_timeout": "4s"
                   },
                   {
                     "name": "foo",
@@ -107834,11 +108171,11 @@
                     "topic": "TopicTest",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -107861,11 +108198,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   }
@@ -108042,10 +108379,10 @@
                       "base_url": "http://iotdb.local:18080/",
                       "pool_type": "random",
                       "resource_opts": {
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "enable_pipelining": 100,
                       "iotdb_version": "v1.1.x",
@@ -108139,6 +108476,7 @@
                           "status": "connected"
                         }
                       ],
+                      "local_topic": "mqtt/local/topic",
                       "kafka": {
                         "message": {
                           "timestamp": "${.timestamp}",
@@ -108174,7 +108512,6 @@
                         "partition_strategy": "random",
                         "max_linger_time": "5ms"
                       },
-                      "local_topic": "mqtt/local/topic",
                       "min_metadata_refresh_interval": "3s",
                       "bootstrap_hosts": "localhost:9092",
                       "metadata_request_timeout": "4s"
@@ -108195,11 +108532,11 @@
                       "servers": [
                         "127.0.0.1:26379"
                       ],
+                      "sentinel": "mymaster",
                       "resource_opts": {
                         "batch_size": 1,
                         "batch_time": "20ms"
                       },
-                      "sentinel": "mymaster",
                       "redis_type": "sentinel",
                       "local_topic": "local/topic/#",
                       "command_template": [
@@ -108264,11 +108601,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -108311,11 +108648,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, FROM_UNIXTIME(${timestamp}/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -108329,11 +108666,11 @@
                       "max_retries": 3,
                       "aws_secret_access_key": "******",
                       "resource_opts": {
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 104857600,
                         "inflight_window": 100,
                         "query_mode": "async",
-                        "health_check_interval": 15000,
-                        "worker_pool_size": 1
+                        "health_check_interval": 15000
                       },
                       "endpoint": "https://kinesis.us-east-1.amazonaws.com",
                       "partition_key": "key",
@@ -108359,11 +108696,11 @@
                       "request_timeout": "15s",
                       "pool_type": "random",
                       "resource_opts": {
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 104857600,
                         "inflight_window": 100,
                         "query_mode": "async",
-                        "health_check_interval": 15000,
-                        "worker_pool_size": 1
+                        "health_check_interval": 15000
                       },
                       "enable_pipelining": 100,
                       "local_topic": "emqx_http/#"
@@ -108387,11 +108724,11 @@
                       "auto_reconnect": "2s",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "payload_template": "",
                       "routing_key": "my_routing_key",
@@ -108412,11 +108749,11 @@
                       "aws_secret_access_key": "******",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "aws_access_key_id": "root"
@@ -108436,11 +108773,11 @@
                       "sql": "insert into t_mqtt_msg(ts, msgid, mqtt_topic, qos, payload, arrived) values (${ts}, '${id}', '${topic}', ${qos}, '${payload}', ${timestamp})",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -108493,11 +108830,11 @@
                       "server": "http://127.0.0.1:4242",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "enabledb": true
                     },
@@ -108552,11 +108889,11 @@
                       "sql": "insert into t_mqtt_msgs(msgid, topic, qos, payload) values (${id}, ${topic}, ${qos}, ${payload})",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "sid": "ORCL"
@@ -108709,11 +109046,11 @@
                       "servers": "127.0.0.1:9042",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "keyspace": "mqtt"
@@ -108771,11 +109108,11 @@
                       "sql": "INSERT INTO messages(data, arrived) VALUES ('${payload}', ${timestamp})",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#",
                       "batch_value_separator": ", "
@@ -108796,11 +109133,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload) values ( ${id}, ${topic}, ${qos}, ${payload} )",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -108826,11 +109163,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -108862,28 +109199,28 @@
                       ],
                       "kafka": {
                         "max_batch_bytes": "896KB",
-                        "offset_commit_interval_seconds": 5,
-                        "offset_reset_policy": "latest"
+                        "offset_reset_policy": "latest",
+                        "offset_commit_interval_seconds": 5
                       },
                       "min_metadata_refresh_interval": "3s",
                       "topic_mapping": [
                         {
                           "qos": 1,
                           "mqtt_topic": "mqtt/topic/${.offset}",
-                          "payload_template": "${.}",
-                          "kafka_topic": "kafka-topic-1"
+                          "kafka_topic": "kafka-topic-1",
+                          "payload_template": "${.}"
                         },
                         {
                           "qos": 2,
                           "mqtt_topic": "mqtt/topic/2",
-                          "payload_template": "v = ${.value}",
-                          "kafka_topic": "kafka-topic-2"
+                          "kafka_topic": "kafka-topic-2",
+                          "payload_template": "v = ${.value}"
                         }
                       ],
                       "bootstrap_hosts": "localhost:9092",
-                      "metadata_request_timeout": "4s",
                       "value_encoding_mode": "none",
-                      "key_encoding_mode": "none"
+                      "key_encoding_mode": "none",
+                      "metadata_request_timeout": "4s"
                     },
                     "summary": "Kafka Consumer Bridge"
                   },
@@ -108897,11 +109234,11 @@
                       "topic": "TopicTest",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 1,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "sync",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 1
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -108927,11 +109264,11 @@
                       "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                       "resource_opts": {
                         "batch_size": 1,
+                        "worker_pool_size": 8,
                         "max_buffer_bytes": 268435456,
                         "batch_time": 0,
                         "query_mode": "async",
-                        "health_check_interval": "15s",
-                        "worker_pool_size": 8
+                        "health_check_interval": "15s"
                       },
                       "local_topic": "local/topic/#"
                     },
@@ -109112,10 +109449,10 @@
                     "base_url": "http://iotdb.local:18080/",
                     "pool_type": "random",
                     "resource_opts": {
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "enable_pipelining": 100,
                     "iotdb_version": "v1.1.x",
@@ -109195,6 +109532,7 @@
                       "sndbuf": "1024KB",
                       "tcp_keepalive": "none"
                     },
+                    "local_topic": "mqtt/local/topic",
                     "kafka": {
                       "message": {
                         "timestamp": "${.timestamp}",
@@ -109230,7 +109568,6 @@
                       "partition_strategy": "random",
                       "max_linger_time": "5ms"
                     },
-                    "local_topic": "mqtt/local/topic",
                     "min_metadata_refresh_interval": "3s",
                     "bootstrap_hosts": "localhost:9092",
                     "metadata_request_timeout": "4s"
@@ -109251,11 +109588,11 @@
                     "servers": [
                       "127.0.0.1:26379"
                     ],
+                    "sentinel": "mymaster",
                     "resource_opts": {
                       "batch_size": 1,
                       "batch_time": "20ms"
                     },
-                    "sentinel": "mymaster",
                     "redis_type": "sentinel",
                     "local_topic": "local/topic/#",
                     "command_template": [
@@ -109313,11 +109650,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -109360,11 +109697,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, FROM_UNIXTIME(${timestamp}/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -109378,11 +109715,11 @@
                     "max_retries": 3,
                     "aws_secret_access_key": "******",
                     "resource_opts": {
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 104857600,
                       "inflight_window": 100,
                       "query_mode": "async",
-                      "health_check_interval": 15000,
-                      "worker_pool_size": 1
+                      "health_check_interval": 15000
                     },
                     "endpoint": "https://kinesis.us-east-1.amazonaws.com",
                     "partition_key": "key",
@@ -109408,11 +109745,11 @@
                     "request_timeout": "15s",
                     "pool_type": "random",
                     "resource_opts": {
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 104857600,
                       "inflight_window": 100,
                       "query_mode": "async",
-                      "health_check_interval": 15000,
-                      "worker_pool_size": 1
+                      "health_check_interval": 15000
                     },
                     "enable_pipelining": 100,
                     "local_topic": "emqx_http/#"
@@ -109436,11 +109773,11 @@
                     "auto_reconnect": "2s",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "payload_template": "",
                     "routing_key": "my_routing_key",
@@ -109461,11 +109798,11 @@
                     "aws_secret_access_key": "******",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "aws_access_key_id": "root"
@@ -109485,11 +109822,11 @@
                     "sql": "insert into t_mqtt_msg(ts, msgid, mqtt_topic, qos, payload, arrived) values (${ts}, '${id}', '${topic}', ${qos}, '${payload}', ${timestamp})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -109542,11 +109879,11 @@
                     "server": "http://127.0.0.1:4242",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "enabledb": true
                   },
@@ -109601,11 +109938,11 @@
                     "sql": "insert into t_mqtt_msgs(msgid, topic, qos, payload) values (${id}, ${topic}, ${qos}, ${payload})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "sid": "ORCL"
@@ -109758,11 +110095,11 @@
                     "servers": "127.0.0.1:9042",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "keyspace": "mqtt"
@@ -109820,11 +110157,11 @@
                     "sql": "INSERT INTO messages(data, arrived) VALUES ('${payload}', ${timestamp})",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#",
                     "batch_value_separator": ", "
@@ -109845,11 +110182,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload) values ( ${id}, ${topic}, ${qos}, ${payload} )",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -109868,11 +110205,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -109897,28 +110234,28 @@
                     },
                     "kafka": {
                       "max_batch_bytes": "896KB",
-                      "offset_commit_interval_seconds": 5,
-                      "offset_reset_policy": "latest"
+                      "offset_reset_policy": "latest",
+                      "offset_commit_interval_seconds": 5
                     },
                     "min_metadata_refresh_interval": "3s",
                     "topic_mapping": [
                       {
                         "qos": 1,
                         "mqtt_topic": "mqtt/topic/${.offset}",
-                        "payload_template": "${.}",
-                        "kafka_topic": "kafka-topic-1"
+                        "kafka_topic": "kafka-topic-1",
+                        "payload_template": "${.}"
                       },
                       {
                         "qos": 2,
                         "mqtt_topic": "mqtt/topic/2",
-                        "payload_template": "v = ${.value}",
-                        "kafka_topic": "kafka-topic-2"
+                        "kafka_topic": "kafka-topic-2",
+                        "payload_template": "v = ${.value}"
                       }
                     ],
                     "bootstrap_hosts": "localhost:9092",
-                    "metadata_request_timeout": "4s",
                     "value_encoding_mode": "none",
-                    "key_encoding_mode": "none"
+                    "key_encoding_mode": "none",
+                    "metadata_request_timeout": "4s"
                   },
                   "summary": "Kafka Consumer Bridge"
                 },
@@ -109932,11 +110269,11 @@
                     "topic": "TopicTest",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 1,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "sync",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 1
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -109955,11 +110292,11 @@
                     "sql": "insert into t_mqtt_msg(msgid, topic, qos, payload, arrived) values (${id}, ${topic}, ${qos}, ${payload}, TO_TIMESTAMP((${timestamp} :: bigint)/1000))",
                     "resource_opts": {
                       "batch_size": 1,
+                      "worker_pool_size": 8,
                       "max_buffer_bytes": 268435456,
                       "batch_time": 0,
                       "query_mode": "async",
-                      "health_check_interval": "15s",
-                      "worker_pool_size": 8
+                      "health_check_interval": "15s"
                     },
                     "local_topic": "local/topic/#"
                   },
@@ -110368,8 +110705,8 @@
               "enum": [
                 "local",
                 "ldap",
-                "oidc",
-                "saml"
+                "saml",
+                "oidc"
               ]
             },
             "example": "local"
@@ -110919,26 +111256,23 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "avro_schema": {
+                  "confluent": {
                     "value": {
-                      "name": "my_avro_schema",
-                      "type": "avro",
-                      "description": "My Avro Schema",
-                      "source": "{\"type\":\"record\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
+                      "type": "confluent",
+                      "auth": {
+                        "mechanism": "basic",
+                        "password": "******",
+                        "username": "cpsruser"
+                      },
+                      "url": "http://confluent_schema_registry:8081"
                     },
-                    "summary": "Avro"
+                    "summary": "Confluent"
                   }
                 },
                 "schema": {
                   "oneOf": [
                     {
-                      "$ref": "#/components/schemas/schema_registry.get_json"
-                    },
-                    {
-                      "$ref": "#/components/schemas/schema_registry.get_protobuf"
-                    },
-                    {
-                      "$ref": "#/components/schemas/schema_registry.get_avro"
+                      "$ref": "#/components/schemas/schema_registry.confluent_schema_registry"
                     }
                   ]
                 }
@@ -111001,26 +111335,23 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "avro_schema": {
+                  "confluent": {
                     "value": {
-                      "name": "my_avro_schema",
-                      "type": "avro",
-                      "description": "My Avro Schema",
-                      "source": "{\"type\":\"record\",\"fields\":[{\"type\":\"int\",\"name\":\"i\"},{\"type\":\"string\",\"name\":\"s\"}]}"
+                      "type": "confluent",
+                      "auth": {
+                        "mechanism": "basic",
+                        "password": "******",
+                        "username": "cpsruser"
+                      },
+                      "url": "http://confluent_schema_registry:8081"
                     },
-                    "summary": "Avro"
+                    "summary": "Confluent"
                   }
                 },
                 "schema": {
                   "oneOf": [
                     {
-                      "$ref": "#/components/schemas/schema_registry.json"
-                    },
-                    {
-                      "$ref": "#/components/schemas/schema_registry.protobuf"
-                    },
-                    {
-                      "$ref": "#/components/schemas/schema_registry.avro"
+                      "$ref": "#/components/schemas/schema_registry.confluent_schema_registry"
                     }
                   ]
                 }
@@ -111056,7 +111387,15 @@
             "application/json": {
               "examples": {
                 "confluent": {
-                  "value": {},
+                  "value": {
+                    "type": "confluent",
+                    "auth": {
+                      "mechanism": "basic",
+                      "password": "******",
+                      "username": "cpsruser"
+                    },
+                    "url": "http://confluent_schema_registry:8081"
+                  },
                   "summary": "Confluent"
                 }
               },
