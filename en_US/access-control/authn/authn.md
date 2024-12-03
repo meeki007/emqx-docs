@@ -187,7 +187,7 @@ EMQX currently supports the following placeholders:
 
 - `${peerhost}`: It will be replaced with the client's IP address at runtime. EMQX supports [Proxy Protocol](http://www.haproxy.org/download/1.8/doc/proxy-protocol.txt), that is, even if EMQX is deployed behind some TCP proxy or load balancer, users can still use this placeholder to get the real IP address.
 
-- `${peername}`: It will be replaced with the client's IP address and port in runtime, and the format is `IP: PORT`.
+- `${peerport}`: It will be replaced with the client's IP port in runtime.
 
 - `${cert_subject}`: It will be replaced by the subject of the client's TLS certificate at runtime. If the load balancer sends client certificate information to the TCP listener, ensure that Proxy Protocol v2 is in use.
 
