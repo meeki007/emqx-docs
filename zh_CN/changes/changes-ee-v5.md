@@ -1,5 +1,152 @@
 # EMQX 企业版 v5 版本
 
+## 5.8.3
+
+*发布日期：2024-12-04*
+
+升级前请查看已知问题列表和不兼容变更列表。
+
+### 增强
+
+#### MQTT 核心功能
+
+- [#14219](https://github.com/emqx/emqx/pull/14219) 强化了连接速率限制器，提升了系统的弹性。
+  - **提升了高连接速率下的系统稳定性和响应性**：以前，当连接速率超出限制时，监听器接收器会忽略新的连接请求，这可能导致在大量客户端频繁连接或重新连接的情况下系统进入不可恢复的状态。现在，监听器会接受待处理的连接，但一旦达到连接速率限制，立即关闭这些连接。这减少了资源压力，并提高了高峰负载下的系统弹性。
+  - **新增监听器选项 `nolinger`**：当设置为 `true` 时，在 socket 关闭时会立即发送 TCP-RST 数据包，有助于缓解 SYN 洪水攻击，并进一步提升连接处理效率。
+  - **MQTT 监听器的 `max_connection` 配置现受系统限制**：MQTT 监听器的 `max_connection` 配置值现在受到系统限制（例如操作系统的 `ulimit` 和 `node.process_limit`）的约束。如果配置为 `infinity` 或超出系统限制的值，它将自动调整为与系统最大限制匹配的值。
+  - **SSL 监听器的 `ssl_options` 配置现在在更改前会进行验证**：以前，非法的 SSL 配置（如不支持的 TLS 版本）可能会被接受，导致在监听器重新配置后客户端连接失败。此次更新后：
+    - 如果监听器配置了无效的 SSL 选项，节点将无法启动。
+    - 通过 Dashboard 或配置 API 提交无效的 SSL 选项请求将返回 `400` 状态码。
+
+#### 安装部署
+
+- [#14251](https://github.com/emqx/emqx/pull/14251) 支持在编译过程中设置 EMQX Enterprise 版本 `flavor`。自定义的 `EMQX_FLAVOR` 将出现在 EMQX 的欢迎信息中，方便识别不同版本。
+
+  示例：
+
+  ```bash
+  EMQX_FLAVOR=niceday make emqx-
+  
+  ./bin/emqx start
+  EMQX Enterprise(niceday) 5.8.3-g99ca2ea8 is started successfully!
+  ```
+
+  此外，您还可以通过 `emqx_release:get_flavor/0` 函数编程方式获取 `flavor`：
+
+  ```bash
+  5.8.3-g99ca2ea8(emqx@127.0.0.1)1> emqx_release:get_flavor(). niceday
+  ```
+
+  此功能为 EMQX Enterprise 版本的定制构建提供了更大的灵活性。
+
+#### 认证和授权
+
+- [#14147](https://github.com/emqx/emqx/pull/14147) 支持在 LDAP 可扩展匹配过滤器中使用 `memberOf` 语法，例如：`(&(objectClass=class)(memberOf:1.2.840.113556.1.4.1941:=CN=GroupName,OU=emqx,DC=WL,DC=com))`。
+
+#### 数据集成
+
+- [#14166](https://github.com/emqx/emqx/pull/14166) 支持在 RabbitMQ 生产者中将 `exchange` 和 `routing_key` 配置为模板值，实现基于消息 payload 动态路由。例如，可以根据 payload 的字段动态设置 `routing_key`，配置为 `${payload.akey}`。
+
+  注意：在批处理模式下，`exchange` 和 `routing_key` 的模板值必须对批处理中的所有消息保持一致。这确保了路由的一致性，并避免了批处理过程中的冲突。
+
+- [#14176](https://github.com/emqx/emqx/pull/14176) 在规则引擎中公开了更多 RabbitMQ source 动作的元数据，包括 `queue`、`exchange` 和 `routing_key`。这使得用户可以在规则中直接访问这些字段，从而增强处理和路由逻辑。
+
+  示例：
+
+  ```sql
+  select *, 
+     queue as payload.queue, exchange as payload.exchange, routing_key as payload.routing_key
+  from 
+     "$bridges/rabbitmq:test"
+  ```
+
+- [#14218](https://github.com/emqx/emqx/pull/14218) 引入了 vhost 风格的桶访问，并改进了对 S3 兼容存储提供商的重定向处理。这些改进现在可以在 S3 桥接和文件传输后台配置中使用。
+
+#### 系统配置
+
+- [#14195](https://github.com/emqx/emqx/pull/14195) 支持d对客户端 ID 的覆盖。
+
+  EMQX 现在通过允许使用 `mqtt.clientid_override={Expression}` 配置来提供更大的灵活性，支持自定义客户端 ID 覆盖。这引入了一种更动态的客户端 ID 管理方式。作为此更新的一部分，`use_userid_as_clientid` 和 `peer_cert_as_clientid` 选项已被弃用，但它们将保持兼容性，直到 6.0 版本。
+
+#### MQTT over QUIC
+
+- [#14283](https://github.com/emqx/emqx/pull/14283) 改进了 QUIC 传输，升级 `quicer` 到 0.1.9。
+  - 在异常场景下，提前释放远程流资源。
+  - 添加了更多故障排除 API。详情请见： https://github.com/emqx/quic/compare/0.1.6...0.1.9。
+
+### 修复
+
+#### MQTT 核心功能
+
+- [#14201](https://github.com/emqx/emqx/pull/14201) 防止 WebSocket 连接遇到速率限制时出现 `check_gc` 警告。
+- [#14215](https://github.com/emqx/emqx/pull/14215) 修复了当 retainer 被禁用时（通过 REST 或 CLI 调用）会抛出异常的问题。
+- [#14223](https://github.com/emqx/emqx/pull/14223) 确保 WebSocket 关闭原因返回为原子类型，以避免崩溃，特别是防止出现错误：`error: {{case_clause,#{invalid_property_code => 51}},[{cowboy_websocket...}}`。
+- [#14260](https://github.com/emqx/emqx/pull/14260) 解决了一个罕见的竞态条件，如果 CONNECT 数据包在空闲超时（默认15秒）之前没有完全接收，可能导致连接进程崩溃。
+- [#14268](https://github.com/emqx/emqx/pull/14268) 修复了另一个罕见的竞态条件，如果 CONNECT 数据包在空闲超时之前没有完全接收，可能导致 WebSocket 连接进程崩溃。
+- [#14266](https://github.com/emqx/emqx/pull/14266) 将 `emqtt` 从版本 1.13.0 更新到 1.13.5。有关更多细节，请参阅 [emqtt 更新日志](https://github.com/emqx/emqtt/blob/1.13.5/changelog.md)。
+
+#### 会话持久化
+
+- [#14160](https://github.com/emqx/emqx/pull/14160) 确保持久会话订阅的主题匹配规则正确适用于以 `$` 符号开头的主题，以符合 MQTT 规范要求。
+- [#14229](https://github.com/emqx/emqx/pull/14229) 修复了 Raft/RocksDB 后端实现中与持久存储相关的几个问题，这些问题可能在某些情况下影响持久共享订阅所使用的内部数据库的正确性和副本收敛性。
+
+#### REST API
+
+- [#14117](https://github.com/emqx/emqx/pull/14117) 修复了 REST API 文档中的一个问题，该问题错误地将 `Users` 端点标记为支持 `Basic` 认证。
+
+#### 规则引擎
+
+- [#14217](https://github.com/emqx/emqx/pull/14217) 修复了 schema registry 端点示例配置中的错误。
+
+#### 数据集成
+
+- [#14172](https://github.com/emqx/emqx/pull/14172) 解决了一个潜在的竞争条件问题，当使用 HTTP API 测试连接器时，如果 HTTP 请求超时，可能会留下未清理的资源。
+
+- [#14178](https://github.com/emqx/emqx/pull/14178) 修复了一个问题，配置同步可能因在集群中不同节点上同时删除规则而导致某个节点上的同步进程卡住。
+
+- [#14226](https://github.com/emqx/emqx/pull/14226) 缓解了在高负载情况下，节点可能丢失资源指标（如动作/ source）并且在没有重启的情况下无法恢复的场景。现在，当重新启动资源或重置其指标时，系统会尝试重建丢失的指标。
+
+  此外，关于指标失败的警告日志（例如 `matched` 等 "热路径" 指标）现在会被限流，以防止日志过多。例如，限流后的日志如下：
+
+  ```
+  2024-11-14T13:56:44.134289+00:00 [warning] tag: RESOURCE, clientid: clientid, msg: handle_resource_metrics_failed, peername: 172.100.239.1:33896, reason: {badkey,matched}, stacktrace: [{erlang,map_get,[matched,#{}],[{error_info,#{module => erl_erts_errors}}]},{emqx_metrics_worker,idx_metric,4,[{file,"src/emqx_metrics_worker.erl"},{line,560}]},...
+  
+  2024-11-14T13:57:12.490503+00:00 [warning] msg: log_events_throttled_during_last_period, period: 1 minutes, 0 seconds, dropped: #{handle_resource_metrics_failed => 2294}
+  ```
+
+- [#14265](https://github.com/emqx/emqx/pull/14265) 修复了一个问题，当 MQTT Source 动作未能成功完成对指定主题的订阅过程，停止连接器时会发生 `badkey` 错误。
+- [#14296](https://github.com/emqx/emqx/pull/14296) 防止 `ecpool_sup` 被一个启动缓慢的 `ecpool_worker` 阻塞。
+- [#14126](https://github.com/emqx/emqx/pull/14126) 修复了 Oracle 集成的预处语句问题。在此修复之前，当预处理语句无效（例如引用不存在的表列）时，可能导致动作应用最旧版本的预处理语句，从而导致不一致。
+- [#14181](https://github.com/emqx/emqx/pull/14181) 使 Kafka 和 Pulsar 生产者在处理损坏的 COMMIT 文件时更加稳定。如果磁盘模式缓冲区中的 COMMIT 文件损坏，将被忽略。虽然这可能导致某些已发送的消息被重新发送，但生产者将不再崩溃。
+
+#### 系统配置
+
+- [#14180](https://github.com/emqx/emqx/pull/14180) 修复了当变量绑定为 `undefined` 或 `null` 时，variform 表达式返回 `'undefined'` 的问题。现在，返回空字符串代替。
+
+- [#14289](https://github.com/emqx/emqx/pull/14289) 解决了在从不同环境导入配置时，日志文件路径不一致的问题。
+
+  在 Docker 中，`EMQX_LOG_DIR` 环境变量设置为 `/opt/emqx/log`，但通过 RPM/DEB 包安装时则为 `/var/log/emqx/`。在此修复之前，导出的日志文件路径（默认文件日志处理进程和审计日志处理进程）会进行环境变量替换。这可能会导致在导入配置到不同环境时，如果目标环境中目录不存在，就会发生崩溃。
+
+  通过此修复，导出时不再对日志文件路径进行环境变量替换。此外，如果旧版本的绝对日志目录路径在新环境中不存在，路径将被转换回环境变量。
+
+#### 可观测性
+
+- [#14276](https://github.com/emqx/emqx/pull/14276) 改进了 JT/T808 消息解析失败的错误日志，提供了更详细的排错信息。
+
+#### 插件与扩展
+
+- [#14243](https://github.com/emqx/emqx/pull/14243) 修复了在某些网关中 `client.connect` 钩子未被触发的问题。
+
+#### MQTT over QUIC
+
+- [#14258](https://github.com/emqx/emqx/pull/14258) 缩短了 QUIC 连接的关闭超时。此前，QUIC 连接在优雅关闭时的超时为 5 秒。如果客户端未响应，EMQX 会记录如下警告：
+
+  ```
+  [warning] msg: session_stepdown_request_timeout, action: discard,
+  ```
+
+  或者可能会导致 Dashboard 上断开客户端时超时。现在，对于“踢出”操作，超时已缩短为 1 秒，对于其他情况，超时为 3 秒。
+
 ## 5.8.2
 
 *发布日期：2024-11-12*
