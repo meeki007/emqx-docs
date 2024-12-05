@@ -47,10 +47,6 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 
 - [#14117](https://github.com/emqx/emqx/pull/14117) Fixed an issue in the REST API documentation where the `Users` endpoint was incorrectly listed as supporting `Basic` Authentication.
 
-#### Authentication
-
-- [#14314](https://github.com/emqx/emqx/pull/14314) Fixed the `scram:http` authentication, which was previously non-functional. 
-
 #### Data Integration
 
 - [#14172](https://github.com/emqx/emqx/pull/14172) Resolved a potential race condition where testing a connector using the HTTP API could leave lingering resources if the HTTP request timed out. 
