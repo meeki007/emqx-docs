@@ -64,7 +64,7 @@
 
 #### 系统配置
 
-- [#14195](https://github.com/emqx/emqx/pull/14195) 支持d对客户端 ID 的覆盖。
+- [#14195](https://github.com/emqx/emqx/pull/14195) 支持对客户端 ID 的覆盖。
 
   EMQX 现在通过允许使用 `mqtt.clientid_override={Expression}` 配置来提供更大的灵活性，支持自定义客户端 ID 覆盖。这引入了一种更动态的客户端 ID 管理方式。作为此更新的一部分，`use_userid_as_clientid` 和 `peer_cert_as_clientid` 选项已被弃用，但它们将保持兼容性，直到 6.0 版本。
 
