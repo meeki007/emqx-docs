@@ -20,26 +20,6 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
     - The node will fail to boot if a listener is configured with invalid SSL options.
     - Requests to apply invalid SSL options via the Dashboard or config API will now fail with a `400` status code.
 
-#### Installation and Deployment
-
-- [#14251](https://github.com/emqx/emqx/pull/14251) Added support for setting the `flavor` of an EMQX Enterprise edition during compilation. The custom `EMQX_FLAVOR` will appear in the EMQX welcome message, allowing easy identification of the edition.
-
-  Example:
-
-  ```bash
-  EMQX_FLAVOR=niceday make emqx-
-  
-  ./bin/emqx start
-  EMQX Enterprise(niceday) 5.8.3-g99ca2ea8 is started successfully!
-  ```
-
-  Additionally, you can retrieve the `flavor` programmatically using the `emqx_release:get_flavor/0` function:
-
-  ```bash
-  5.8.3-g99ca2ea8(emqx@127.0.0.1)1> emqx_release:get_flavor(). niceday
-  ```
-
-  This feature enables greater flexibility for customized builds of the EMQX Enterprise edition.
 
 #### Authentication and Authorization
 
