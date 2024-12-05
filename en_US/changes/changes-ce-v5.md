@@ -43,6 +43,10 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 - [#14268](https://github.com/emqx/emqx/pull/14268) Fixed another rare race condition that could cause the WebSocket connection process to crash when the CONNECT packet was not fully received before the idle timeout expired.
 - [#14266](https://github.com/emqx/emqx/pull/14266) Updated `emqtt` from version 1.13.0 to 1.13.5. For more details, please refer to the [emqtt changelog](https://github.com/emqx/emqtt/blob/1.13.5/changelog.md).
 
+#### Durable Sessions
+
+- [#14160](https://github.com/emqx/emqx/pull/14160) Ensured that topic matching rules for durable session subscriptions are properly applied to topics starting with the `$` symbol, in accordance with the MQTT specification.
+
 #### REST API
 
 - [#14117](https://github.com/emqx/emqx/pull/14117) Fixed an issue in the REST API documentation where the `Users` endpoint was incorrectly listed as supporting `Basic` Authentication.
@@ -91,6 +95,10 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
   ```
 
   or potentially cause a timeout on the Dashboard when attempting to disconnect the client. The timeout has now been reduced to 1 second for "kick" actions and 3 seconds for other scenarios.
+
+#### Security
+
+- [#14305](https://github.com/emqx/emqx/pull/14305) Removed support of md4, md5 and ripemd160 in authentication as they are not compliant with [NIST Secure Hash Standard](https://www.nist.gov/publications/secure-hash-standard).
 
 ## 5.8.2
 

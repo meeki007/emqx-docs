@@ -90,9 +90,11 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 #### Durable Sessions
 
 - [#14160](https://github.com/emqx/emqx/pull/14160) Ensured that topic matching rules for durable session subscriptions are properly applied to topics starting with the `$` symbol, in accordance with the MQTT specification.
+
 - [#14229](https://github.com/emqx/emqx/pull/14229) Fixed several issues in the Raft/RocksDB backend implementation for Durable Storage, which could have affected the correctness and replica convergence of internal databases used by Durable Shared Subscriptions in certain cases.
 
 - [#14298](https://github.com/emqx/emqx/pull/14298) Improved fault tolerance for transient remote shard failures in the DS Raft/RocksDB backend, preventing durable session crashes that occurred when polling shards for updates.
+
 #### REST API
 
 - [#14117](https://github.com/emqx/emqx/pull/14117) Fixed an issue in the REST API documentation where the `Users` endpoint was incorrectly listed as supporting `Basic` Authentication.
@@ -134,6 +136,8 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 
   With this fix, log file paths are no longer environment-variable interpolated during export. Additionally, absolute log directory paths from older versions are now converted back to environment variables if the path doesn’t exist in the new environment. 
 
+- [#14313](https://github.com/emqx/emqx/pull/14313) Fixed an issue when EMQX may get stuck during boot when reading REST API bootstrap api keys file on replicant node. Now, bootstrap api keys file is only loaded on core nodes.
+
 #### Observability
 
 - [#14276](https://github.com/emqx/emqx/pull/14276) Enhanced error logging for failed JT/T808 message parsing, providing more detailed information for troubleshooting.
@@ -151,6 +155,10 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
   ```
 
   or potentially cause a timeout on the Dashboard when attempting to disconnect the client. The timeout has now been reduced to 1 second for "kick" actions and 3 seconds for other scenarios.
+
+#### Security
+
+- [#14305](https://github.com/emqx/emqx/pull/14305) Removed support of md4, md5 and ripemd160 in authentication as they are not compliant with [NIST Secure Hash Standard](https://www.nist.gov/publications/secure-hash-standard).
 
 ## 5.8.2
 
