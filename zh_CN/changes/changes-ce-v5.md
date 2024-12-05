@@ -36,7 +36,7 @@
 
 - [#14201](https://github.com/emqx/emqx/pull/14201) 防止 WebSocket 连接遇到速率限制时出现 `check_gc` 警告。
 - [#14215](https://github.com/emqx/emqx/pull/14215) 修复了当 retainer 被禁用时（通过 REST 或 CLI 调用）会抛出异常的问题。
-- [#14223](https://github.com/emqx/emqx/pull/14223) 确保 WebSocket 关闭原因返回为原子类型，以避免崩溃，特别是防止出现错误：`error: {{case_clause,#{invalid_property_code => 51}},[{cowboy_websocket...}}`。
+- [#14223](https://github.com/emqx/emqx/pull/14223) 确保 WebSocket 关闭原因返回为原子类型，以避免崩溃。
 - [#14260](https://github.com/emqx/emqx/pull/14260) 解决了一个罕见的竞态条件，如果 CONNECT 数据包在空闲超时（默认15秒）之前没有完全接收，可能导致连接进程崩溃。
 - [#14268](https://github.com/emqx/emqx/pull/14268) 修复了另一个罕见的竞态条件，如果 CONNECT 数据包在空闲超时之前没有完全接收，可能导致 WebSocket 连接进程崩溃。
 - [#14266](https://github.com/emqx/emqx/pull/14266) 将 `emqtt` 从版本 1.13.0 更新到 1.13.5。有关更多细节，请参阅 [emqtt 更新日志](https://github.com/emqx/emqtt/blob/1.13.5/changelog.md)。
@@ -53,13 +53,7 @@
 
 - [#14226](https://github.com/emqx/emqx/pull/14226) 缓解了在高负载情况下，节点可能丢失资源指标（如动作/ source）并且在没有重启的情况下无法恢复的场景。现在，当重新启动资源或重置其指标时，系统会尝试重建丢失的指标。
 
-  此外，关于指标失败的警告日志（例如 `matched` 等 "热路径" 指标）现在会被限流，以防止日志过多。例如，限流后的日志如下：
-
-  ```
-  2024-11-14T13:56:44.134289+00:00 [warning] tag: RESOURCE, clientid: clientid, msg: handle_resource_metrics_failed, peername: 172.100.239.1:33896, reason: {badkey,matched}, stacktrace: [{erlang,map_get,[matched,#{}],[{error_info,#{module => erl_erts_errors}}]},{emqx_metrics_worker,idx_metric,4,[{file,"src/emqx_metrics_worker.erl"},{line,560}]},...
-  
-  2024-11-14T13:57:12.490503+00:00 [warning] msg: log_events_throttled_during_last_period, period: 1 minutes, 0 seconds, dropped: #{handle_resource_metrics_failed => 2294}
-  ```
+  此外，关于指标失败的警告日志（例如 `matched` 等 "热路径" 指标）现在会被限流，以防止日志过多。
 
 - [#14265](https://github.com/emqx/emqx/pull/14265) 修复了一个问题，当 MQTT Source 动作未能成功完成对指定主题的订阅过程，停止连接器时会发生 `badkey` 错误。
 
@@ -218,18 +212,12 @@
 
 - [#14099](https://github.com/emqx/emqx/pull/14099) 移除了在验证 MQTT 消息中的 UTF-8 字符串失败时触发的错误级日志。
 
-  被移除的日志示例如下：
-
-  ```
-  {"time":"2024-10-11T06:05:07.610048+00:00","level":"error","msg":"supervisor: {esockd_connection_sup,0.53591191.0}, errorContext: connection_shutdown, reason: #{cause => invalid_topic,reason => malformed_utf8_string_length}, offender: [{pid,0.53591191.0},...]", ..., "error_logger":{"type":"supervisor_report","tag":"error_report"}}
-  ```
-
 - [#14091](https://github.com/emqx/emqx/pull/14091) 实现了一个修复，以在用户提供不支持的写入语法时移除日志中的 `function_clause` 错误。
 
   不支持的语法示例：
 
   ```bash
-  weather,location=us-midwest,season=summer temperature=82 ${timestamp}u 
+  weather,location=us-midwest,season=summer temperature=82 ${timestamp}u
   ```
 
   在此修复之前，错误日志中会包含 `function_clause` 错误，如下所示：
