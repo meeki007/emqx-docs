@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - v*
+  pull_request:
 
 jobs:
   prepare:
@@ -19,9 +20,14 @@ jobs:
       - name: set_environment
         id: set_environment
         run: |
-          current_branch=$(echo ${{ github.ref_name }})
-          current_version=$(echo ${{ github.ref_name }} | sed -r "s/^(.*)-.*$/\1/")
-          current_version=${current_version/e/v}
+          if [ "${{ github.event_name }}" = "push" ]; then
+            current_branch=$(echo ${{ github.ref_name }})
+            current_version=$(echo ${{ github.ref_name }} | sed -r "s/^(.*)-.*$/\1/")
+            current_version=${current_version/e/v}
+          else
+            current_version=$(echo "$GITHUB_BASE_REF" | cut -d- -f 2)
+            current_version="v${current_version}"
+          fi
 
           tag_list=$(git tag | egrep "^v.*$" | xargs echo -n)
           docs_types='["emqx"]'
@@ -118,7 +124,7 @@ jobs:
         python3 .github/scripts/generate_version.py $version_list > ../frontend/docs/public/api/${DOCS_TYPE}_versions.json
 
     - name: setup hocon
-      if: ${{ matrix.version != 'latest' }}
+      if: matrix.version != 'latest'
       run: |
         echo "HOCON=true" >> $GITHUB_ENV
         cp -r docs-files/hocon/*.json frontend/docs/public/api/
@@ -152,7 +158,7 @@ jobs:
         pnpm build
 
     - name: build redoc
-      if: ${{ matrix.version != 'latest' }}
+      if: matrix.version != 'latest'
       run: |
         cd frontend
         npm i -g @redocly/cli@latest
@@ -176,6 +182,7 @@ jobs:
         done
 
     - name: set aws credentials
+      if: github.event_name == 'push'
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -183,6 +190,7 @@ jobs:
         aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
     - name: upload files to aws s3
+      if: github.event_name == 'push'
       run: |
         aws s3 rm --recursive s3://docs-emqx-com/zh/${DOCS_TYPE}/${VERSION} || true
         aws s3 rm --recursive s3://docs-emqx-com/en/${DOCS_TYPE}/${VERSION} || true
@@ -190,6 +198,7 @@ jobs:
         aws cloudfront create-invalidation --distribution-id ${{ secrets.AWS_DOCS_CLOUDFRONT_ID }} --paths "/zh/emqx/*" "/en/emqx/*" "/zh/enterprise/*" "/en/enterprise/*" "/api/*" "/sitemap_${DOCS_TYPE}_${VERSION}.xml"
 
     - name: upload files to tencent cos
+      if: github.event_name == 'push'
       run: |
         pip3 install coscmd
         coscmd config -a ${{ secrets.TENCENT_COS_ID }} -s ${{ secrets.TENCENT_COS_KEY }} -b docs-1302406139 -r ap-shanghai
@@ -199,6 +208,7 @@ jobs:
         coscmd upload -r frontend/docs/.vitepress/dist/ /
 
     - name: set tccli
+      if: github.event_name == 'push'
       run: |
         pip3 install tccli
         tccli configure set secretId ${{ secrets.TENCENT_COS_ID }}
@@ -206,12 +216,13 @@ jobs:
         tccli configure set region ap-shanghai
 
     - name: flush cdn
+      if: github.event_name == 'push'
       run: |
         tccli cdn PurgePathCache --cli-unfold-argument --Paths https://docs.emqx.com/zh/emqx/ https://docs.emqx.com/en/emqx/ https://docs.emqx.com/zh/enterprise/ https://docs.emqx.com/en/enterprise/ https://docs.emqx.com/api/ --FlushType delete
         tccli cdn PurgeUrlsCache --cli-unfold-argument --Urls https://docs.emqx.com/sitemap_${DOCS_TYPE}_${VERSION}.xml
 
     - name: update ee search index
-      if: matrix.docs_type == 'enterprise'
+      if: github.event_name == 'push' && matrix.docs_type == 'enterprise'
       uses: Swilder-M/docsearch-scraper-simple@next
       env:
         APPLICATION_ID: ${{ secrets.ALGOLIA_APPLICATION_ID_CE }}
@@ -221,7 +232,7 @@ jobs:
         docs_version: ${{ env.VERSION }}
 
     - name: update ce search index
-      if: matrix.docs_type == 'emqx'
+      if: github.event_name == 'push' && matrix.docs_type == 'emqx'
       uses: Swilder-M/docsearch-scraper-simple@next
       env:
         APPLICATION_ID: ${{ secrets.ALGOLIA_APPLICATION_ID_CE }}
