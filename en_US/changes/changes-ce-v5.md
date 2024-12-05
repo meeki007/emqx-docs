@@ -78,10 +78,6 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 
   With this fix, log file paths are no longer environment-variable interpolated during export. Additionally, absolute log directory paths from older versions are now converted back to environment variables if the path doesn’t exist in the new environment. 
 
-#### Observability
-
-- [#14276](https://github.com/emqx/emqx/pull/14276) Enhanced error logging for failed JT/T808 message parsing, providing more detailed information for troubleshooting.
-
 #### Extension
 
 - [#14243](https://github.com/emqx/emqx/pull/14243) Fixed an issue where the `client.connect` hook was not being triggered for some gateways.
