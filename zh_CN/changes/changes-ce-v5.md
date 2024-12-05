@@ -45,10 +45,6 @@
 
 - [#14117](https://github.com/emqx/emqx/pull/14117) 修复了 REST API 文档中的一个问题，该问题错误地将 `Users` 端点标记为支持 `Basic` 认证。
 
-#### 认证
-
-- [#14314](https://github.com/emqx/emqx/pull/14314) 修复了 `scram:http` 认证功能，此前该功能无法正常工作。
-
 #### 数据集成
 
 - [#14172](https://github.com/emqx/emqx/pull/14172) 解决了一个潜在的竞争条件问题，当使用 HTTP API 测试连接器时，如果 HTTP 请求超时，可能会留下未清理的资源。
