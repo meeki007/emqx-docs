@@ -61,10 +61,15 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 #### Core MQTT Functionalities
 
 - [#14201](https://github.com/emqx/emqx/pull/14201) Prevent `check_gc` warning from appearing when a WebSocket connection encounters a rate limit.
+
 - [#14215](https://github.com/emqx/emqx/pull/14215) Fixed an issue where calls to the retainer (via REST or CLI) would throw an exception if it was disabled. 
-- [#14223](https://github.com/emqx/emqx/pull/14223) Ensured the WebSocket close reason is returned as an atom to avoid crashes, specifically preventing the error: `error: {{case_clause,#{invalid_property_code => 51}},[{cowboy_websocket...}}`.
+
+- [#14223](https://github.com/emqx/emqx/pull/14223) Ensured the WebSocket close reason is returned as an atom to avoid crashes.
+
 - [#14260](https://github.com/emqx/emqx/pull/14260) Resolved a rare race condition that could cause the connection process to crash if the CONNECT packet was not fully received before the idle timeout (default 15 seconds) expired.
+
 - [#14268](https://github.com/emqx/emqx/pull/14268) Fixed another rare race condition that could cause the WebSocket connection process to crash when the CONNECT packet was not fully received before the idle timeout expired.
+
 - [#14266](https://github.com/emqx/emqx/pull/14266) Updated `emqtt` from version 1.13.0 to 1.13.5. For more details, please refer to the [emqtt changelog](https://github.com/emqx/emqtt/blob/1.13.5/changelog.md).
 
 #### Durable Sessions
@@ -95,17 +100,14 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 
 - [#14226](https://github.com/emqx/emqx/pull/14226) Mitigated a scenario where, under high load, a node could lose track of resource metrics (e.g., action/source) and fail to recover without a restart. Now, when restarting a resource or resetting its metrics, the system attempts to recreate the lost metrics. 
 
-  Additionally, warning logs related to metric failures, such as those for "hot-path" metrics like `matched`, are now throttled to prevent excessive log flooding. Example of throttled log:
-
-  ```
-  2024-11-14T13:56:44.134289+00:00 [warning] tag: RESOURCE, clientid: clientid, msg: handle_resource_metrics_failed, peername: 172.100.239.1:33896, reason: {badkey,matched}, stacktrace: [{erlang,map_get,[matched,#{}],[{error_info,#{module => erl_erts_errors}}]},{emqx_metrics_worker,idx_metric,4,[{file,"src/emqx_metrics_worker.erl"},{line,560}]},...
-  
-  2024-11-14T13:57:12.490503+00:00 [warning] msg: log_events_throttled_during_last_period, period: 1 minutes, 0 seconds, dropped: #{handle_resource_metrics_failed => 2294}
-  ```
+  Additionally, warning logs related to metric failures, such as those for "hot-path" metrics like `matched`, are now throttled to prevent excessive log flooding.
 
 - [#14265](https://github.com/emqx/emqx/pull/14265) Fixed an issue where a `badkey` error would occur when stopping a connector if the MQTT Source action failed to subscribe successfully.
+
 - [#14296](https://github.com/emqx/emqx/pull/14296) Prevented `ecpool_sup` from being blocked by a slow-starting `ecpool_worker`.
+
 - [#14126](https://github.com/emqx/emqx/pull/14126) Fixed an issue with prepared statements for Oracle integration. Prior to this fix, an invalid prepared statement (e.g., referencing a non-existent table column) could cause the action to apply the oldest prepared statement version, leading to inconsistencies.
+
 - [#14181](https://github.com/emqx/emqx/pull/14181) Made Kafka and Pulsar producers more resilient to corrupted COMMIT files. If the COMMIT file is corrupted in disk mode buffers, it will now be ignored. While this may result in some previously sent messages being replayed, the producer will no longer crash.
 
 #### Configuration
@@ -278,11 +280,7 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 
 - [#14106](https://github.com/emqx/emqx/pull/14106) Added a validation that forbids a single Kafka Consumer connector from containing sources with repeated Kafka topics.
 
-- [#14120](https://github.com/emqx/emqx/pull/14120) Improved handling of timeouts during Pulsar Connector health checks to reduce unnecessary log noise.   Previously, timeouts could generate repetitive error logs. For example:   
-
-  ```
-  2024-10-31T12:41:41.014678+00:00 [error] tag: CONNECTOR/PULSAR, msg: health_check_exception, reason: #{reason => {timeout,{gen_server,call,[<0.5877.0>,get_status,5000]}},stacktrace => [{gen_server,call,3,[{file,"gen_server.erl"},{line,419}]},{emqx_bridge_pulsar_connector,on_get_status,2,[{file,"src/emqx_bridge_pulsar_connector.erl"},{line,174}]},{emqx_resource,call_health_check,3,[{file,"src/emqx_resource.erl"},{line,550}]},{emqx_resource_manager,worker_resource_health_check,1,[{file,"src/emqx_resource_manager.erl"},{line,1149}]}],exception => exit}, resource_id: <<"connector:pulsar:a">>
-  ```
+- [#14120](https://github.com/emqx/emqx/pull/14120) Improved handling of timeouts during Pulsar Connector health checks to reduce unnecessary log noise. Previously, timeouts could generate repetitive error logs.
 
 #### Observability
 
@@ -299,12 +297,6 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
   ```
 
 - [#14099](https://github.com/emqx/emqx/pull/14099) Removed an error-level log entry that was triggered when validation of UTF-8 strings in MQTT messages failed.
-
-  Example of the removed log entry:
-  
-  ```
-  {"time":"2024-10-11T06:05:07.610048+00:00","level":"error","msg":"supervisor: {esockd_connection_sup,0.53591191.0}, errorContext: connection_shutdown, reason: #{cause => invalid_topic,reason => malformed_utf8_string_length}, offender: [{pid,0.53591191.0},...]", ..., "error_logger":{"type":"supervisor_report","tag":"error_report"}}
-  ```
 
 - [#14091](https://github.com/emqx/emqx/pull/14091) Implemented a fix to remove `function_clause` from log messages when users provide unsupported write syntax.
 
