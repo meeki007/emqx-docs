@@ -2,7 +2,7 @@
 
 ## 5.8.3
 
-*发布日期：2024-12-04*
+*发布日期：2024-12-05*
 
 升级前请查看已知问题列表和不兼容变更列表。
 
@@ -89,10 +89,15 @@
 
 - [#14160](https://github.com/emqx/emqx/pull/14160) 确保持久会话订阅的主题匹配规则正确适用于以 `$` 符号开头的主题，以符合 MQTT 规范要求。
 - [#14229](https://github.com/emqx/emqx/pull/14229) 修复了 Raft/RocksDB 后端实现中与持久存储相关的几个问题，这些问题可能在某些情况下影响持久共享订阅所使用的内部数据库的正确性和副本收敛性。
+- [#14298](https://github.com/emqx/emqx/pull/14298) 改进了 DS Raft/RocksDB 后端对临时远程分片故障的容错能力，防止在拉取分片数据以获取更新时发生持久会话崩溃。
 
 #### REST API
 
 - [#14117](https://github.com/emqx/emqx/pull/14117) 修复了 REST API 文档中的一个问题，该问题错误地将 `Users` 端点标记为支持 `Basic` 认证。
+
+#### 认证
+
+- [#14314](https://github.com/emqx/emqx/pull/14314) 修复了 `scram:http` 认证功能，此前该功能无法正常工作。
 
 #### 规则引擎
 

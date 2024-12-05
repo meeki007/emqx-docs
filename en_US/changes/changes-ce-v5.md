@@ -2,7 +2,7 @@
 
 ## 5.8.3
 
-*Release Date: 2024-12-04*
+*Release Date: 2024-12-05*
 
 Make sure to check the breaking changes and known issues before upgrading to EMQX 5.8.3.
 
@@ -46,6 +46,10 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 #### REST API
 
 - [#14117](https://github.com/emqx/emqx/pull/14117) Fixed an issue in the REST API documentation where the `Users` endpoint was incorrectly listed as supporting `Basic` Authentication.
+
+#### Authentication
+
+- [#14314](https://github.com/emqx/emqx/pull/14314) Fixed the `scram:http` authentication, which was previously non-functional. 
 
 #### Data Integration
 

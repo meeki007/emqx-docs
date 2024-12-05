@@ -2,7 +2,7 @@
 
 ## 5.8.3
 
-*Release Date: 2024-12-04*
+*Release Date: 2024-12-05*
 
 Make sure to check the breaking changes and known issues before upgrading to EMQX 5.8.3.
 
@@ -92,18 +92,18 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 - [#14160](https://github.com/emqx/emqx/pull/14160) Ensured that topic matching rules for durable session subscriptions are properly applied to topics starting with the `$` symbol, in accordance with the MQTT specification.
 - [#14229](https://github.com/emqx/emqx/pull/14229) Fixed several issues in the Raft/RocksDB backend implementation for Durable Storage, which could have affected the correctness and replica convergence of internal databases used by Durable Shared Subscriptions in certain cases.
 
-- [#14298](https://github.com/emqx/emqx/pull/14298) Tolerate transient remote shard failures in DS Raft/RocksDB backend that could have caused durable sessions to crash when polling shards for updates.
+- [#14298](https://github.com/emqx/emqx/pull/14298) Improved fault tolerance for transient remote shard failures in the DS Raft/RocksDB backend, preventing durable session crashes that occurred when polling shards for updates.
 #### REST API
 
 - [#14117](https://github.com/emqx/emqx/pull/14117) Fixed an issue in the REST API documentation where the `Users` endpoint was incorrectly listed as supporting `Basic` Authentication.
 
+#### Authentication
+
+- [#14314](https://github.com/emqx/emqx/pull/14314) Fixed the `scram:http` authentication, which was previously non-functional. 
+
 #### Rule Engine
 
 - [#14217](https://github.com/emqx/emqx/pull/14217) Fixed errors in the example configurations for the schema registry endpoints.
-
-#### Authentication and Authorization
-
-- [#14314](https://github.com/emqx/emqx/pull/14314) Fix `scram:http` authentication.
 
 #### Data Integration
 
