@@ -56,6 +56,10 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 
 - [#14117](https://github.com/emqx/emqx/pull/14117) Fixed an issue in the REST API documentation where the `Users` endpoint was incorrectly listed as supporting `Basic` Authentication.
 
+#### Authentication
+
+- [#14305](https://github.com/emqx/emqx/pull/14305) Removed support of hashing algorithms `MD4`, `MD5`, and `RIPEMD-160` from authentication as they are not compliant with [NIST Secure Hash Standard](https://www.nist.gov/publications/secure-hash-standard).
+
 #### Data Integration
 
 - [#14172](https://github.com/emqx/emqx/pull/14172) Resolved a potential race condition where testing a connector using the HTTP API could leave lingering resources if the HTTP request timed out. 
@@ -90,10 +94,6 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
   ```
 
   or potentially cause a timeout on the Dashboard when attempting to disconnect the client. The timeout has now been reduced to 1 second for "kick" actions and 3 seconds for other scenarios.
-
-#### Security
-
-- [#14305](https://github.com/emqx/emqx/pull/14305) Removed support of md4, md5 and ripemd160 in authentication as they are not compliant with [NIST Secure Hash Standard](https://www.nist.gov/publications/secure-hash-standard).
 
 ## 5.8.2
 
