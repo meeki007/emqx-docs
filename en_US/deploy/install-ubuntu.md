@@ -16,7 +16,7 @@ EMQX supports installing with Apt source to provide our users with a convenient 
 1. Download the EMQX repository:
 
    ```bash
-   curl -s https://assets.emqx.com/scripts/install-emqx-deb.sh | sudo bash
+   curl -s https://packagecloud.io/install/repositories/emqx/emqx-enterprise5/script.deb.sh | sudo bash
    ```
 
 2. Install EMQX:
