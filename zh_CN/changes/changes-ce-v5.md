@@ -41,9 +41,17 @@
 - [#14268](https://github.com/emqx/emqx/pull/14268) 修复了另一个罕见的竞态条件，如果 CONNECT 数据包在空闲超时之前没有完全接收，可能导致 WebSocket 连接进程崩溃。
 - [#14266](https://github.com/emqx/emqx/pull/14266) 将 `emqtt` 从版本 1.13.0 更新到 1.13.5。有关更多细节，请参阅 [emqtt 更新日志](https://github.com/emqx/emqtt/blob/1.13.5/changelog.md)。
 
+#### 会话持久化
+
+- [#14160](https://github.com/emqx/emqx/pull/14160) 确保持久会话订阅的主题匹配规则正确适用于以 `$` 符号开头的主题，以符合 MQTT 规范要求。
+
 #### REST API
 
 - [#14117](https://github.com/emqx/emqx/pull/14117) 修复了 REST API 文档中的一个问题，该问题错误地将 `Users` 端点标记为支持 `Basic` 认证。
+
+#### 认证
+
+- [#14305](https://github.com/emqx/emqx/pull/14305) 认证中移除了对哈希算法 `MD4`、`MD5` 和 `RIPEMD-160` 的支持，因为它们不符合 [NIST 安全哈希标准](https://www.nist.gov/publications/secure-hash-standard)。
 
 #### 数据集成
 
@@ -68,10 +76,6 @@
   在 Docker 中，`EMQX_LOG_DIR` 环境变量设置为 `/opt/emqx/log`，但通过 RPM/DEB 包安装时则为 `/var/log/emqx/`。在此修复之前，导出的日志文件路径（默认文件日志处理进程和审计日志处理进程）会进行环境变量替换。这可能会导致在导入配置到不同环境时，如果目标环境中目录不存在，就会发生崩溃。
 
   通过此修复，导出时不再对日志文件路径进行环境变量替换。此外，如果旧版本的绝对日志目录路径在新环境中不存在，路径将被转换回环境变量。
-
-#### 可观测性
-
-- [#14276](https://github.com/emqx/emqx/pull/14276) 改进了 JT/T808 消息解析失败的错误日志，提供了更详细的排错信息。
 
 #### 插件与扩展
 

@@ -87,6 +87,7 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 #### Authentication
 
 - [#14314](https://github.com/emqx/emqx/pull/14314) Fixed the `scram:http` authentication, which was previously non-functional. 
+- [#14305](https://github.com/emqx/emqx/pull/14305) Removed support of hashing algorithms `MD4`, `MD5`, and `RIPEMD-160` from authentication as they are not compliant with [NIST Secure Hash Standard](https://www.nist.gov/publications/secure-hash-standard).
 
 #### Rule Engine
 
@@ -118,9 +119,9 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
 
   With this fix, log file paths are no longer environment-variable interpolated during export. Additionally, absolute log directory paths from older versions are now converted back to environment variables if the path doesn’t exist in the new environment. 
 
-- [#14313](https://github.com/emqx/emqx/pull/14313) Fixed an issue when EMQX may get stuck during boot when reading REST API bootstrap api keys file on replicant node. Now, bootstrap api keys file is only loaded on core nodes.
+- [#14313](https://github.com/emqx/emqx/pull/14313) Fixed an issue where EMQX could become stuck during startup due to reading the REST API bootstrap API keys file on a replicant node. Now, the bootstrap api keys file is only loaded on core nodes.
 
-#### Observability
+#### Gateway
 
 - [#14276](https://github.com/emqx/emqx/pull/14276) Enhanced error logging for failed JT/T808 message parsing, providing more detailed information for troubleshooting.
 
@@ -137,10 +138,6 @@ Make sure to check the breaking changes and known issues before upgrading to EMQ
   ```
 
   or potentially cause a timeout on the Dashboard when attempting to disconnect the client. The timeout has now been reduced to 1 second for "kick" actions and 3 seconds for other scenarios.
-
-#### Security
-
-- [#14305](https://github.com/emqx/emqx/pull/14305) Removed support of md4, md5 and ripemd160 in authentication as they are not compliant with [NIST Secure Hash Standard](https://www.nist.gov/publications/secure-hash-standard).
 
 ## 5.8.2
 

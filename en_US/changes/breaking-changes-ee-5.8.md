@@ -2,7 +2,7 @@
 
 ## e5.8.3
 
-- [#14305](https://github.com/emqx/emqx/pull/14305) Removed support of md4, md5 and ripemd160 in authentication as they are not compliant with [NIST Secure Hash Standard](https://www.nist.gov/publications/secure-hash-standard).
+- [#14305](https://github.com/emqx/emqx/pull/14305) Removed support of hashing algorithms `MD4`, `MD5`, and `RIPEMD-160` from authentication as they are not compliant with [NIST Secure Hash Standard](https://www.nist.gov/publications/secure-hash-standard).
 
 ## e5.8.2
 

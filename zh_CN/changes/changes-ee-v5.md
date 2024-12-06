@@ -18,27 +18,6 @@
     - 如果监听器配置了无效的 SSL 选项，节点将无法启动。
     - 通过 Dashboard 或配置 API 提交无效的 SSL 选项请求将返回 `400` 状态码。
 
-#### 安装部署
-
-- [#14251](https://github.com/emqx/emqx/pull/14251) 支持在编译过程中设置 EMQX Enterprise 版本 `flavor`。自定义的 `EMQX_FLAVOR` 将出现在 EMQX 的欢迎信息中，方便识别不同版本。
-
-  示例：
-
-  ```bash
-  EMQX_FLAVOR=niceday make emqx-
-  
-  ./bin/emqx start
-  EMQX Enterprise(niceday) 5.8.3-g99ca2ea8 is started successfully!
-  ```
-
-  此外，您还可以通过 `emqx_release:get_flavor/0` 函数编程方式获取 `flavor`：
-
-  ```bash
-  5.8.3-g99ca2ea8(emqx@127.0.0.1)1> emqx_release:get_flavor(). niceday
-  ```
-
-  此功能为 EMQX Enterprise 版本的定制构建提供了更大的灵活性。
-
 #### 认证和授权
 
 - [#14147](https://github.com/emqx/emqx/pull/14147) 支持在 LDAP 可扩展匹配过滤器中使用 `memberOf` 语法，例如：`(&(objectClass=class)(memberOf:1.2.840.113556.1.4.1941:=CN=GroupName,OU=emqx,DC=WL,DC=com))`。
@@ -98,6 +77,7 @@
 #### 认证
 
 - [#14314](https://github.com/emqx/emqx/pull/14314) 修复了 `scram:http` 认证功能，此前该功能无法正常工作。
+- [#14305](https://github.com/emqx/emqx/pull/14305) 认证中移除了对哈希算法 `MD4`、`MD5` 和 `RIPEMD-160` 的支持，因为它们不符合 [NIST 安全哈希标准](https://www.nist.gov/publications/secure-hash-standard)。
 
 #### 规则引擎
 
@@ -128,7 +108,9 @@
 
   通过此修复，导出时不再对日志文件路径进行环境变量替换。此外，如果旧版本的绝对日志目录路径在新环境中不存在，路径将被转换回环境变量。
 
-#### 可观测性
+- [#14313](https://github.com/emqx/emqx/pull/14313) 解决了在启动过程中，由于从副本节点读取 REST API 启动 API 密钥文件，可能导致 EMQX 启动过程停滞的问题。 现在，启动 API 密钥文件仅在核心节点上加载。
+
+#### 网关
 
 - [#14276](https://github.com/emqx/emqx/pull/14276) 改进了 JT/T808 消息解析失败的错误日志，提供了更详细的排错信息。
 

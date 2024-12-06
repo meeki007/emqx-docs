@@ -1,5 +1,9 @@
 # EMQX 5.8 中的不兼容变更
 
+## e5.8.3
+
+- [#14305](https://github.com/emqx/emqx/pull/14305) 认证中移除了对哈希算法 `MD4`、`MD5` 和 `RIPEMD-160` 的支持，因为它们不符合 [NIST 安全哈希标准](https://www.nist.gov/publications/secure-hash-standard)。
+
 ## e5.8.2
 
 - [#14004](https://github.com/emqx/emqx/pull/14004) 修复了集群连接中的一个问题，即在 `topics` 配置中，重叠的主题过滤器导致跨集群消息路由不一致且不完整。现在每个主题过滤器都会被单独处理，因此在集群连接的 `topics` 配置中，重叠的主题过滤器（例如，`t/1` 和 `t/+`）现在被视为无效配置。如果检测到重叠过滤器，连接将无法启动，以防止路由问题。
