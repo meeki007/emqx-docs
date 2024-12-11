@@ -43,7 +43,7 @@ Click on **Management** -> **Listeners** in the left menu to enter the listeners
 - WebSocket listener using port 8083
 - WebSocket secure listener using port 8084
 
-![image](/Users/emqx/Documents/GitHub/emqx-docs/en_US/dashboard/assets/config-listener-list.png)
+![image](./assets/config-listener-list.png)
 
 Typically, you can use these default listeners by specifying the corresponding port and protocol type. To add another type of listener, click the **+Add Listener** button in the top-right corner to create a new listener.
 
@@ -51,7 +51,7 @@ Typically, you can use these default listeners by specifying the corresponding p
 
 In the **Add Lisenter** pop-up panel, you will see a form for adding a listener, which contains the basic configuration items. You can enter a name for the listener to identify it, choose the listener type (TCP, SSL, WS, WSS), and enter the listener address (IP address and port number). Using the IP address can restrict the listener's access range, or you can directly specify a port number.
 
-![image](/Users/emqx/Documents/GitHub/emqx-docs/en_US/dashboard/assets/config-listener-add.png)
+![image](./assets/config-listener-add.png)
 
 #### Rate Limiting
 
@@ -100,13 +100,13 @@ The Monitoring feature is only available in the EMQX Enterprise edition.
 Click on **Management** -> **Monitoring** in the left menu to enter the monitoring integration configuration page. This page contains two tabs:
 
 - **System**: Depending on the user's needs, the settings for the [Alarms](./diagnose.md#alarms) function, such as alarm thresholds, check intervals, etc., can be adjusted to a certain extent according to user needs.
-- **Integration**: Provides configuration for integration with third party monitoring platforms.
+- **Integration**: Provides configuration for integration with third-party monitoring platforms.
 
 ### System
 
-If the default value of the current alarm trigger threshold or alarm monitoring check interval does not meet the actual needs of you, you can adjust the settings on this page. The current settings are divided into two modules: **Erlang VM** and **Operating System**, the default values and descriptions of each configuration item can be found in [Alarms](../observability/alarms.md).
+If the default value of the current alarm trigger threshold or alarm monitoring check interval does not meet the actual needs, you can adjust the settings on this page. The current settings are divided into two modules: **Erlang VM** and **Operating System**, the default values and descriptions of each configuration item can be found in [Alarms](../observability/alarms.md).
 
-<img src="/Users/emqx/Documents/GitHub/emqx-docs/en_US/dashboard/assets/monitoring-system.png" alt="image" style="zoom:67%;" />
+<img src="./assets/monitoring-system.png" alt="image" style="zoom:67%;" />
 
 ### Integration
 

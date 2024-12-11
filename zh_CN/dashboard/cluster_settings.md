@@ -43,7 +43,7 @@ EMQX 提供了热配置能力，可以在运行时动态修改配置，无需重
 - 使用 8083 端口的 WebSocket 类型监听器
 - 使用 8084 端口的 WebSocket 安全类型监听器
 
-![config-listener-list](/Users/emqx/Documents/GitHub/emqx-docs/zh_CN/dashboard/assets/config-listener-list.png)
+![config-listener-list](./assets/config-listener-list.png)
 
 通常使用以上默认的监听器，输入对应端口和协议类型即可。如果需要添加其他类型的监听器，可以点击右上角的**添加监听器**按钮，添加一个新的监听器。
 
@@ -51,7 +51,7 @@ EMQX 提供了热配置能力，可以在运行时动态修改配置，无需重
 
 在右侧弹出的**添加监听器**面板中可以看到一个添加监听器的表单，其中中包含了监听器的基本配置项。您可以输入一个监听器名称用于标识该监听器；选择一个监听器类型，包括 tcp、ssl、ws 和 wss 类型；输入监听器地址，可以输入 IP 地址和端口号，使用 IP 地址可以限制监听器的访问范围，也可以直接输入一个端口号。
 
-![image](/Users/emqx/Documents/GitHub/emqx-docs/zh_CN/dashboard/assets/config-listener-add.png)
+![image](./assets/config-listener-add.png)
 
 #### 速率限制
 
@@ -106,7 +106,7 @@ EMQX 支持两种不同的日志输出方式：控制台输出日志和文件输
 
 如当前告警触发阈值或告警监控检查间隔的默认值不符合用户的实际需要，可以在此页面进行设置调整。当前设置分为两个模块：**Erlang 虚拟机**和**操作系统**，各配置项的默认值和说明可查看[告警](https://docs.emqx.com/zh/emqx/latest/observability/alarms.html)。
 
-<img src="/Users/emqx/Documents/GitHub/emqx-docs/zh_CN/dashboard/assets/monitoring-system.png" alt="image" style="zoom:67%;" />
+<img src="./assets/monitoring-system.png" alt="image" style="zoom:67%;" />
 
 ### 监控集成
 
@@ -120,7 +120,7 @@ EMQX 支持两种不同的日志输出方式：控制台输出日志和文件输
 
 启动 `Prometheus` 服务后，可以在帮助页面的最后，点击下载我们提供的 `Grafana` 默认的监控面板的配置文件，将该文件导入到 `Grafana` 中，我们就可以通过可视化面板来查看 EMQX 的监控数据，用户也可以根据需求在 `Grafana` 中对监控数据进行自定义修改。同时模版也可以在 [Grafana 官方网站](https://grafana.com/grafana/dashboards/17446-emqx/)中下载。
 
-![image](https://docs.emqx.com/assets/emqx-grafana.OnkGjqvG.jpg)
+![emqx-grafana](./assets/emqx-grafana.jpg)
 
 关于 OpenTelemetry 和 Datadog 集成的配置详情，参考[集成 OpenTelemetry](../observability/open-telemetry/open-telemetry.md) 和 [集成 Datadog](../observability/datadog.md)。
 
