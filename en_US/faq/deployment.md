@@ -269,5 +269,47 @@ EMQX node name consists of Name and Host, with the Host derived from the contain
 To address this issue, EMQX provides an environment variable, `EMQX_HOST`, which allows you to set the Host part of the node name. However, it is crucial that this Host value is reachable by other nodes, so it should be used in conjunction with a network alias. Here is an example command for running the EMQX Docker container with the EMQX_HOST environment variable and a network alias:
 
 ```
-docker run -d --name emqx -p 18083:18083 -p 1883:1883 -e EMQX_HOST=alias-for-emqx --network example --network-alias alias-for-emqx --mount type=bind,source=/tmp/emqx,target=/opt/emqx/data emqx:5.0.24
+docker run -d --name emqx -p 18083:18083 -p 1883:1883 -e EMQX_HOST=alias-for-emqx --network example --network-alias alias-for-emqx --mount type=bind,source=/tmp/emqx,target=/opt/emqx/data emqx:5.8.3
 ```
+
+## Why does the container show unhealthy status when it starts normally with docker-compose and Dashboard is accessible?
+
+```bash
+docker-compose ps
+NAME      IMAGE                         COMMAND                  SERVICE   CREATED          STATUS                    PORTS
+emqx1     emqx/emqx:latest   "/usr/bin/docker-ent…"   emqx     120 seconds ago   Up 110 seconds (unhealthy)   0.0.0.0:1883->1883/tcp, :::1883->1883/tcp, 0.0.0.0:18083->18083/tcp, :::18083->18083/tcp
+```
+
+EMQX's health check relies on the `./bin/emqx_ctl status` command. If this command fails to execute, the container will show an unhealthy status.
+
+```yaml
+healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx_ctl", "status"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+```
+
+When manually executing the `./bin/emqx_ctl status` command:
+```
+emqx@docker:/opt/emqx$ emqx_ctl status
+Node emqx@docker not responding to pings.
+```
+
+This indicates that the command cannot connect to the node. This occurs because when starting the container, the network doesn't use an alias and isn't in FQDN format, making it impossible to locate the node.
+
+Solutions:
+1. Modify the docker hostname to match the EMQX node name
+2. Modify the docker-compose.yml file by adding hostname configuration:
+
+```yaml
+# xxx.yyy.zzz(docker.emqx.com) should be in FQDN format
+hostname: docker.emqx.com
+ environment:
+      - EMQX_HOST=docker.emqx.com
+```
+
+Since EMQX uses `data/mnesia/<node name>` as its data storage directory, using a fixed identifier like hostname or FQDN as the node name (rather than IP) can also prevent data loss due to node name changes.
+
+It's recommended to use the [EMQX Docker Compose Generator](https://docker.emqx.dev/) to generate a production-ready docker-compose.yml file.
+
