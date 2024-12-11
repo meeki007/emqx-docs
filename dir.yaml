@@ -528,9 +528,9 @@
           title_cn: 管理
           path: dashboard/configuration
           children:
-            - dashboard/cluster_settings.md
-            - dashboard/advanced_mqtt.md
-            - dashboard/extensions.md
+            - dashboard/cluster_settings
+            - dashboard/advanced_mqtt
+            - dashboard/extensions
         - dashboard/diagnose
         - dashboard/system
     - title_en: Single Sign-On (SSO)
