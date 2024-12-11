@@ -54,16 +54,16 @@ Configuration items can be different for different protocol gateways. For detail
 
 After completing the basic configuration, you can proceed to set up the gateway's listeners. Each gateway can have multiple listeners enabled, depending on the protocol. The following table outlines the supported listener types for various protocol gateways:
 
-|            | TCP  | UDP  | SSL  | DTLS |
-| ---------- | ---- | ---- | ---- | ---- |
-| STOMP      | ✔︎    |      | ✔︎    |      |
-| CoAP       |      | ✔︎    |      | ✔︎    |
-| ExProto    | ✔︎    | ✔︎    | ✔︎    | ✔︎    |
-| MQTT-SN    |      | ✔︎    |      | ✔︎    |
-| LwM2M      |      | ✔︎    |      | ✔︎    |
-| ExProto    |      |      |      |      |
-| OCPP       |      |      |      |      |
-| GB/T 32960 |      |      |      |      |
+|            | TCP  | UDP  | SSL  | DTLS | Websocket | Websocket over TLS |
+| ---------- | ---- | ---- | ---- | ---- | --------- | ------------------ |
+| STOMP      | ✔︎    |      | ✔︎    |      |           |                    |
+| CoAP       |      | ✔︎    |      | ✔︎    |           |                    |
+| ExProto    | ✔︎    | ✔︎    | ✔︎    | ✔︎    |           |                    |
+| MQTT-SN    |      | ✔︎    |      | ✔︎    |           |                    |
+| LwM2M      |      | ✔︎    |      | ✔︎    |           |                    |
+| OCPP       |      |      |      |      | ✔︎         | ✔︎                  |
+| JT/T 808   | ✔︎    |      | ✔︎    |      |           |                    |
+| GB/T 32960 | ✔︎    |      | ✔︎    |      |           |                    |
 
 #### Authentication
 
