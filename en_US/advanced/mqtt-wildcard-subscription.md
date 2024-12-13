@@ -1,6 +1,6 @@
 # Wildcard Subscription
 
-MQTT topic name is a UTF-8 encoded string used for message routing. To provide more flexibility, MQTT supports a hierarchical topic namespace. A topic is typically leveled and separated with a slash `/` between the levels such as `chat/room/1`. A [wildcard subscription](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Topic_Names_and) is a subscription with a topic filter containing one or more wildcard characters. This allows the subscription to match more than one topic name. This page introduces the usage of two types of wildcards supported in MQTT and how to subscribe to topics containing wildcard characters in EMQX. 
+MQTT topic name is a UTF-8 encoded string used for message routing. To provide more flexibility, MQTT supports a hierarchical topic namespace. A topic is typically leveled and separated with a slash `/` between the levels such as `chat/room/1`. A wildcard subscription is a subscription with a topic filter containing one or more wildcard characters. This allows the subscription to match more than one topic name. This page introduces the usage of two types of wildcards supported in MQTT and how to subscribe to topics containing wildcard characters in EMQX. 
 
 ::: tip Note
 
@@ -63,8 +63,8 @@ This section demonstrates how to use the MQTTX client to create subscriptions to
 
 :::tip Prerequisites
 
-- Knowledge about MQTT [Wildcards](./mqtt-concepts.md#topic-and-wildcards)
-- Basic publishing and subscribing operations using [MQTTX](./publish-and-subscribe.md)
+- Knowledge about MQTT Wildcards
+- Basic publishing and subscribing operations using MQTTX
 
 :::
 
@@ -73,12 +73,6 @@ This section demonstrates how to use the MQTTX client to create subscriptions to
    - Enter `Demo` in the **Name** field.
    - Enter the localhost `127.0.0.1` in **Host** to use as an example in this demonstration.
    - Leave other settings as default and click **Connect**.
-
-   ::: tip
-
-   More detailed instructions on creating an MQTT connection are introduced in [MQTTX Desktop](./publish-and-subscribe.md#mqttx-desktop).
-
-   :::
 
    <img src="./assets/Configure-new-connection-general.png" alt="Configure-new-connection-general" style="zoom:35%;" />
 

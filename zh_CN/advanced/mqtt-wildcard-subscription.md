@@ -1,6 +1,6 @@
 # 通配符订阅
 
-MQTT 主题名称是用于消息路由的 UTF-8 编码字符串。为了提供更大的灵活性，MQTT 支持分层主题命名空间。主题通常按层级分级，并使用斜杠 `/` 在级别之间进行分隔，例如 `chat/room/1`。[通配符订阅](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Topic_Names_and)允许客户端在主题名称中包含一个或多个通配符字符，通过主题过滤器匹配多个主题，从而实现一次订阅多个主题。本页介绍了 MQTT 中支持的两种类型的通配符的用法以及如何在 EMQX 中订阅包含通配符的主题。
+MQTT 主题名称是用于消息路由的 UTF-8 编码字符串。为了提供更大的灵活性，MQTT 支持分层主题命名空间。主题通常按层级分级，并使用斜杠 `/` 在级别之间进行分隔，例如 `chat/room/1`。通配符订阅允许客户端在主题名称中包含一个或多个通配符字符，通过主题过滤器匹配多个主题，从而实现一次订阅多个主题。本页介绍了 MQTT 中支持的两种类型的通配符的用法以及如何在 EMQX 中订阅包含通配符的主题。
 
 ::: tip 注意
 
@@ -63,8 +63,8 @@ sensor/1/temperature
 
 :::tip 前置准备
 
-- 了解 MQTT 的[通配符](./mqtt-concepts.md#通配符)。
-- 能使用 [MQTTX](./publish-and-subscribe.md) 进行基本的发布和订阅操作。
+- 了解 MQTT 的通配符。
+- 能使用 MQTTX 进行基本的发布和订阅操作。
 
 :::
 
@@ -73,12 +73,6 @@ sensor/1/temperature
    - 在**名称**栏中输入`Demo`。
    - 在本演示中，**服务器地址**使用本地主机 `127.0.0.1` 作为示例。
    - 其它设置保持默认，点击**连接**。
-
-   ::: tip
-
-   [MQTTX Desktop](./publish-and-subscribe.md#mqttx-desktop) 中介绍了更多详细的连接创建信息。
-
-   :::
 
    <img src="./assets/new-connection.png" alt="new-connection" style="zoom:40%;" />
 
