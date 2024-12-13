@@ -71,6 +71,10 @@
           "path": "advanced/exclusive-subscriptions"
         },
         {
+          "title": "通配符订阅",
+          "path": "advanced/mqtt-wildcard-subscription"
+        },
+        {
           "title": "消息重传",
           "path": "advanced/retransmission"
         },
@@ -835,8 +839,12 @@
           "path": "advanced/shared-subscriptions"
         },
         {
-          "title": "Exclusive subscriptions",
+          "title": "Exclusive subscription",
           "path": "advanced/exclusive-subscriptions"
+        },
+        {
+          "title": "Wildcard subscriptions",
+          "path": "advanced/mqtt-wildcard-subscription"
         },
         {
           "title": "Message retransmission",
