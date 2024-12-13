@@ -268,12 +268,15 @@ Node emqx@docker not responding to pings.
 表明命令连不上节点，这是由于启动容器时 network 没有使用 alias，且不是 FQDN 格式，无法找到节点。
 
 解决办法：
-1. 修改 docker 的 hostname 和 emqx 的节点名一致
-2. 修改 docker-compose.yml 文件，添加 hostname 配置
+1. 修改 Docker 的 hostname 和 emqx 的节点名一致。
+2. 修改 `docker-compose.yml` 文件，添加 hostname 配置。
 ```yaml
 # xxx.yyy.zzz(docker.emqx.com) 符合 FQDN 格式。
 hostname: docker.emqx.com
  environment:
       - EMQX_HOST=docker.emqx.com
+```
+
 由于 EMQX 使用 `data/mnesia/<节点名>` 作为数据存储目录，使用 hostname 或者 FQDN 等固定的信息作为节点名（不推荐使用 IP），还可以避免因为节点名称变动导致数据丢失。 
-推荐使用 [EMQX Docker Compose 一键生成器](https://docker.emqx.dev/) 一键生成生产就绪的 docker-compose.yml 文件。
+
+推荐使用 [EMQX Docker Compose 一键生成器](https://docker.emqx.dev/) 一键生成生产就绪的 `docker-compose.yml` 文件。
