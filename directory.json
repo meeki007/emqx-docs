@@ -60,9 +60,13 @@
           "title": "共享订阅",
           "path": "advanced/shared-subscriptions"
         },
-    {
+        {
           "title": "排它订阅",
           "path": "advanced/exclusive-subscriptions"
+        },
+        {
+          "title": "通配符订阅",
+          "path": "advanced/mqtt-wildcard-subscription"
         },
         {
           "title": "延迟发布",
@@ -541,9 +545,13 @@
           "title": "Shared subscription",
           "path": "advanced/shared-subscriptions"
         },
-    {
-          "title": "Exclusive subscriptions",
+        {
+          "title": "Exclusive subscription",
           "path": "advanced/exclusive-subscriptions"
+        },
+        {
+          "title": "Wildcard subscription",
+          "path": "advanced/mqtt-wildcard-subscription"
         },
         {
           "title": "Delay publish",
